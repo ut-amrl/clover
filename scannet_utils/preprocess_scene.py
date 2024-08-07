@@ -45,6 +45,17 @@ EXCLUDE_LABELS = {
     "sink",
 }
 
+# config for filtering instances
+MIN_NUM_INSTANCES = 8
+
+# config for filtering annotations
+MIN_MASK_OVERLAP = 0.5
+MIN_SAM2_SCORE = 0.8
+MIN_MASK_AREA = 10000
+MIN_CONTOUR_AREA = 5000
+MIN_BBOX_HEIGHT = 100
+MIN_BBOX_WIDTH = 100
+
 
 def is_bbox_at_corner(bbox, image_size):
     x1, y1, x2, y2 = bbox
@@ -105,12 +116,13 @@ def get_annotations(img_file, input_masks):
         score = score.squeeze()
 
         mask_overlap = (mask * input_masks[idx]).sum() / input_masks[idx].sum()
-        print(
-            f"Overlap: {mask_overlap:.2f}, Score: {score:.2f}, Mask area: {mask.sum()}"
-        )
 
-        # Filter out (occlusion, low score, small mask) cases
-        if mask_overlap < 0.5 or score < 0.8 or mask.sum() < 10000:
+        # NOTE: Filter out (occlusion, low score, small mask) cases
+        if (
+            mask_overlap < MIN_MASK_OVERLAP
+            or score < MIN_SAM2_SCORE
+            or mask.sum() < MIN_MASK_AREA
+        ):
             continue
 
         contours, _ = cv2.findContours(
@@ -121,8 +133,11 @@ def get_annotations(img_file, input_masks):
         approx_contours = []
         for contour in contours:
             area = cv2.contourArea(contour)
-            if area < 5000:
+
+            # NOTE: Filter out small contours
+            if area < MIN_CONTOUR_AREA:
                 continue
+
             eps = 0.005 * cv2.arcLength(contour, True)
             approx = cv2.approxPolyDP(contour, eps, True)
             approx_contours.append(approx)
@@ -132,7 +147,9 @@ def get_annotations(img_file, input_masks):
 
         # Get bbox
         x, y, w, h = cv2.boundingRect(np.vstack(approx_contours))
-        if w < 100 or h < 100:
+
+        # NOTE: Filter out small bboxes
+        if w < MIN_BBOX_WIDTH or h < MIN_BBOX_HEIGHT:
             continue
 
         bboxes[idx] = [x, y, x + w, y + h]
@@ -142,13 +159,14 @@ def get_annotations(img_file, input_masks):
 
 
 def main(args):
-    img_files = natsorted(args.img_dir.glob("*.jpg"))[::100]
-    instance_files = natsorted(args.instance_dir.glob("*.png"))[::100]
+    img_files = natsorted(args.img_dir.glob("*.jpg"))[::3]
+    instance_files = natsorted(args.instance_dir.glob("*.png"))[::3]
     aggregation = json.load(open(args.aggregation_file))
     instance_labels = {seg["id"]: seg["label"] for seg in aggregation["segGroups"]}
 
     data = {"sceneId": f"scannet.{args.scene_id}", "frames": []}
 
+    instance_count = {}
     # Process each frame
     for framd_id in tqdm(range(len(img_files)), desc=f"Processing {args.scene_id}"):
         img_file = img_files[framd_id]
@@ -179,39 +197,29 @@ def main(args):
             if bbox is None:
                 continue
 
-            print(
-                f"Instance ID: {id}, Label: {label}, bbox_w: {bbox[2] - bbox[0]}, bbox_h: {bbox[3] - bbox[1]}"
-            )
-            img = cv2.imread(str(img_file), cv2.IMREAD_COLOR)
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
-            plt.imshow(img)
-            plt.axis("off")
-            plt.gca().add_patch(
-                plt.Rectangle(
-                    (bbox[0], bbox[1]),
-                    bbox[2] - bbox[0],
-                    bbox[3] - bbox[1],
-                    fill=False,
-                    edgecolor="red",
-                    linewidth=2,
-                )
-            )
-            # draw the polygon
-            for seg in segmentation:
-                plt.plot(seg[0::2], seg[1::2], color="green", linewidth=2)
-            plt.show()
-
+            instance_id = int(id)
             frame_data["instances"].append(
                 {
-                    "instanceId": int(id),
+                    "instanceId": instance_id,
                     "label": label,
                     "bbox": bbox,
                     "segmentation": segmentation,
                 }
             )
+            instance_count[instance_id] = instance_count.get(instance_id, 0) + 1
 
         data["frames"].append(frame_data)
+
+    # remove instance with small number of instances
+    for frame_data in data["frames"]:
+        frame_data["instances"] = [
+            instance_data
+            for instance_data in frame_data["instances"]
+            if instance_count[instance_data["instanceId"]] > MIN_NUM_INSTANCES
+        ]
+    data["frames"] = [
+        frame_data for frame_data in data["frames"] if frame_data["instances"]
+    ]
 
     # Save the data
     with open(args.output_file, "w") as f:
