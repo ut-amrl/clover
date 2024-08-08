@@ -26,7 +26,7 @@ if torch.cuda.get_device_properties(0).major >= 8:
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
 
-sam2_checkpoint = "/home/dongmyeong/Projects/others/segment-anything-2/checkpoints/sam2_hiera_large.pt"
+sam2_checkpoint = "../../others/segment-anything-2/checkpoints/sam2_hiera_large.pt"
 model_cfg = "sam2_hiera_l.yaml"
 sam2_model = build_sam2(model_cfg, sam2_checkpoint, device="cuda")
 SAM2_PREDICTOR = SAM2ImagePredictor(sam2_model)
@@ -159,16 +159,17 @@ def get_annotations(img_file, input_masks):
 
 
 def main(args):
-    img_files = natsorted(args.img_dir.glob("*.jpg"))[::3]
-    instance_files = natsorted(args.instance_dir.glob("*.png"))[::3]
+    img_files = natsorted(args.img_dir.glob("*.jpg"))
+    instance_files = natsorted(args.instance_dir.glob("*.png"))
     aggregation = json.load(open(args.aggregation_file))
     instance_labels = {seg["id"]: seg["label"] for seg in aggregation["segGroups"]}
 
     data = {"sceneId": f"scannet.{args.scene_id}", "frames": []}
-
     instance_count = {}
+
     # Process each frame
-    for framd_id in tqdm(range(len(img_files)), desc=f"Processing {args.scene_id}"):
+    frame_indices = range(len(img_files))[:: args.skip]
+    for framd_id in tqdm(frame_indices, desc=f"Processing {args.scene_id}"):
         img_file = img_files[framd_id]
         instance_file = instance_files[framd_id]
 
@@ -244,6 +245,12 @@ def get_args():
         type=str,
         required=True,
         help="ScanNet scene ID",
+    )
+    parser.add_argument(
+        "--skip",
+        type=int,
+        default=3,
+        help="Skip frames for processing",
     )
     args = parser.parse_args()
 
