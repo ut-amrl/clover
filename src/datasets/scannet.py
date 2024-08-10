@@ -40,8 +40,7 @@ class ScanNetDataset(Dataset):
         self.n_views = kwargs.get("n_views", 2)
         self.n_imgs_per_instance = n_imgs_per_instance
 
-        # self.scene_ids = self._get_scene_ids()
-        self.scene_ids = ["scene0000_00"]
+        self.scene_ids = self._get_scene_ids()
 
         print("-" * 80)
         print(f"ScanNet dataset path: '{root_dir}'")
