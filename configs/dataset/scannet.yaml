@@ -1,2 +1,3 @@
 _target_: src.datasets.ScanNetDataset
 root_dir: ${paths.data_dir}/ScanNet
+n_imgs_per_instance: 8

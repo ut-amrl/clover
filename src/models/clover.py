@@ -1,12 +1,9 @@
 from typing import Literal
-from tqdm import tqdm
 
 import torch
 import torch.nn as nn
 
 from src.losses import SupConLoss, TripletLoss
-
-from matplotlib import pyplot as plt
 
 
 class CLOVER(nn.Module):
@@ -22,9 +19,7 @@ class CLOVER(nn.Module):
         images = [img.cuda(non_blocking=True) for img in batch["images"]]
         images = torch.cat(images, dim=0)
 
-        features = self.net(images, use_head=(mode == "train"))
-
-        return features
+        return self.net(images, use_head=(mode == "train"))
 
     def train_step(self, batch):
         self.net.train()

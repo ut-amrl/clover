@@ -1,0 +1,19 @@
+# @package _global_
+
+defaults:
+  - override /dataset: scannet
+  - override /model: reobj
+
+train:
+  clip_grad_norm: 5.0
+
+data:
+  batch_size: 48
+
+#
+name: "ScanNet_ReOBJ"
+tags:
+  - "ScanNet"
+  - "ReOBJ"
+
+seed: 42

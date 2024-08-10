@@ -1,0 +1,31 @@
+_target_: src.models.ReOBJ
+
+net:
+  _target_: src.models.nets.ReObjNet
+  name: "resnet50"
+  pretrained: true
+  feat_dim: 4096
+
+criterion:
+  _target_: src.losses.TripletLoss
+  name: "Triplet"
+  margin: 1.0
+
+optimizer:
+  _target_: torch.optim.SGD
+  _partial_: true
+  lr: 0.001
+  momentum: 0.9
+  weight_decay: 1e-4
+
+scheduler:
+  _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+  _partial_: true
+  T_max: 20
+  eta_min: 0.001
+
+img_transform:
+  _target_: src.transforms.TransformReOBJ
+  img_size: 224
+  margin: 10
+  square: false

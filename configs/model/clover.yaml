@@ -1,7 +1,7 @@
 _target_: src.models.CLOVER
 
 net:
-  _target_: src.models.backbones.ContrastiveViT
+  _target_: src.models.nets.ContrastiveViT
   name: "vit_b_16"
   pretrained: true
   in_channels: 3
@@ -30,7 +30,7 @@ scheduler:
   eta_min: 0.001
 
 img_transform:
-  _target_: src.utils.img_transform.TransformCLOVER
+  _target_: src.transforms.TransformCLOVER
   img_size: 224
   margin: 10
   square: true

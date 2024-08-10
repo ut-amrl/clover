@@ -1,0 +1,12 @@
+_target_: src.models.FFA
+
+net:
+  _target_: src.models.nets.FFANet
+  name: "dinov2_vitb14"
+  variant: "Crop-Feat"
+
+img_transform:
+  _target_: src.transforms.TransformFFA
+  img_size: 336
+  margin: 10
+  square: true

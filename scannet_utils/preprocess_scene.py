@@ -46,7 +46,7 @@ EXCLUDE_LABELS = {
 }
 
 # config for filtering instances
-MIN_NUM_INSTANCES = 8
+MIN_NUM_INSTANCES = 2
 
 # config for filtering annotations
 MIN_MASK_OVERLAP = 0.5
@@ -216,7 +216,7 @@ def main(args):
         frame_data["instances"] = [
             instance_data
             for instance_data in frame_data["instances"]
-            if instance_count[instance_data["instanceId"]] > MIN_NUM_INSTANCES
+            if instance_count[instance_data["instanceId"]] >= MIN_NUM_INSTANCES
         ]
     data["frames"] = [
         frame_data for frame_data in data["frames"] if frame_data["instances"]

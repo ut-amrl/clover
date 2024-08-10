@@ -28,14 +28,13 @@ class FFANet(torch.nn.Module):
             "dino_vitb8",
         ],
         variant: Literal["Crop-Feat", "Crop-Img"],
-        **kwargs
     ):
         """
         :param device: string or torch.device object to run the model on.
         :param carvekit_object_type: object type for foreground segmentation. Can be "object" or "hairs-like".
         We find that "object" works well for most images in the CUTE dataset as well as vehicle ReID.
         """
-        super().__init__()
+        super(FFANet, self).__init__()
         if name.startswith("dinov2"):
             self.encoder = torch.hub.load("facebookresearch/dinov2", name)
             self.patch_size = 14

@@ -81,6 +81,7 @@ def validate(model, val_dataloader):
     print("\n * Validating the model...")
     model.net.eval()
 
+    # Define metrics
     topk = [1, 5, 10]
     metrics = {
         "mAP": AverageMeter(),
@@ -108,9 +109,7 @@ def validate(model, val_dataloader):
         same_label_mask[q_idx] = 0
 
         if same_label_mask.sum() == 0:
-            logger.warning(
-                f"No same instance exists in reference set for query {q_idx}"
-            )
+            logger.warning(f"No same instance in reference set for query {q_idx}")
             continue
 
         r_indices, num_ref = None, None
@@ -121,6 +120,8 @@ def validate(model, val_dataloader):
                 (torch.arange(q_idx), torch.arange(q_idx + 1, N)), dim=0
             )
             num_ref = N - 1
+        else:
+            raise ValueError(f"Dataset {val_dataloader.dataset.name} not supported")
 
         # Get top indices
         top_indices = get_top_indices(
@@ -130,7 +131,7 @@ def validate(model, val_dataloader):
         # Update metrics
         hits = torch.eq(labels[top_indices], q_label)
         precisions = (
-            torch.cumsum(hits, dim=0).float() / (torch.arange(num_ref) + 1).float()
+            torch.cumsum(hits, dim=0).float() / (torch.arange(len(hits)) + 1).float()
         )
 
         metrics["mAP"].update(precisions[hits].mean().item())
@@ -158,14 +159,14 @@ def main(cfg: DictConfig):
     train_dataset = hydra.utils.instantiate(
         cfg.dataset,
         mode="train",
-        method=cfg.model.criterion.name,
         transform=cfg.model.img_transform,
+        method=cfg.model.criterion.name if cfg.model.get("criterion") else None,
     )
     val_dataset = hydra.utils.instantiate(
         cfg.dataset,
         mode="val",
-        method=cfg.model.criterion.name,
         transform=cfg.model.img_transform,
+        method=cfg.model.criterion.name if cfg.model.get("criterion") else None,
     )
 
     train_dataloader = DataLoader(

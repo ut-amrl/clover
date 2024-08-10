@@ -2,15 +2,15 @@
 
 defaults:
   - override /dataset: scannet
-  - override /model: clover
+  - override /model: ffa
 
 data:
-  batch_size: 64
+  batch_size: 32
 
 #
-name: "ScanNet_CLOVER"
+name: "ScanNet_FFA"
 tags:
   - "ScanNet"
-  - "CLOVER"
+  - "FFA"
 
 seed: 42

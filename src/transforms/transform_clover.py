@@ -6,10 +6,9 @@ import numpy as np
 import cv2
 from PIL import Image
 
-import torch
-import torch.nn.functional as F
-from torch.utils.data import Dataset
 from torchvision import transforms
+
+from .common import crop_image
 
 
 class TransformCLOVER:
@@ -20,6 +19,7 @@ class TransformCLOVER:
         square: bool = True,
         augmentation: bool = True,
     ):
+        self.img_size = img_size
         self.margin = margin
         self.square = square
         self.augmentation = augmentation
@@ -27,23 +27,23 @@ class TransformCLOVER:
         self.train_transform = transforms.Compose(
             [
                 transforms.ToPILImage(),
-                transforms.Resize((img_size, img_size), interpolation=Image.BICUBIC),
-                # transforms.ColorJitter(
-                #     brightness=(0.6, 1.4),
-                #     contrast=(0.6, 1.4),
-                #     saturation=(0.6, 1.4),
-                #     hue=(-0.2, 0.2),
-                # ),
+                transforms.Resize(self.img_size, interpolation=Image.BICUBIC),
+                transforms.ColorJitter(
+                    brightness=(0.6, 1.4),
+                    contrast=(0.6, 1.4),
+                    saturation=(0.6, 1.4),
+                    hue=(-0.2, 0.2),
+                ),
                 transforms.ToTensor(),
-                # transforms.Normalize(
-                #     mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
-                # ),
+                transforms.Normalize(
+                    mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
+                ),
             ]
         )
         self.eval_transform = transforms.Compose(
             [
                 transforms.ToPILImage(),
-                transforms.Resize((img_size, img_size), interpolation=Image.BICUBIC),
+                transforms.Resize(self.img_size, interpolation=Image.BICUBIC),
                 transforms.ToTensor(),
                 transforms.Normalize(
                     mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
@@ -51,69 +51,13 @@ class TransformCLOVER:
             ]
         )
 
-    def crop_image(
-        self,
-        img: np.ndarray,
-        bbox: List[int],
-        margin: int,
-        square: bool,
-    ):
-        """Crop image with margin"""
-        imgH, imgW, imgC = img.shape
-
-        # Add margin to the bounding box
-        x1 = max(0, bbox[0] - margin)
-        y1 = max(0, bbox[1] - margin)
-        x2 = min(imgW, bbox[2] + margin)
-        y2 = min(imgH, bbox[3] + margin)
-
-        if not square:
-            return img[y1:y2, x1:x2]
-
-        # Make the bounding box square
-        max_length = max(x2 - x1, y2 - y1)
-        center_x = (x1 + x2) // 2
-        center_y = (y1 + y2) // 2
-
-        # center the square bounding box
-        x1 = center_x - max_length // 2
-        y1 = center_y - max_length // 2
-        x2 = x1 + max_length
-        y2 = y1 + max_length
-
-        # calcuate the padding
-        pad_x1 = max(0, -x1)
-        pad_y1 = max(0, -y1)
-        pad_x2 = max(0, x2 - imgW)
-        pad_y2 = max(0, y2 - imgH)
-
-        # Adjust bbox to be within image boundaries
-        x1 = max(0, x1)
-        y1 = max(0, y1)
-        x2 = min(imgW, x2)
-        y2 = min(imgH, y2)
-
-        # Crop the image
-        cropped_img = img[y1:y2, x1:x2]
-
-        # Pad the image to make it square
-        if pad_x1 > 0 or pad_y1 > 0 or pad_x2 > 0 or pad_y2 > 0:
-            cropped_img = np.pad(
-                cropped_img,
-                ((pad_y1, pad_y2), (pad_x1, pad_x2), (0, 0)),
-                mode="constant",
-                constant_values=0,
-            )
-
-        return cropped_img
-
     def __call__(self, img, bbox, mode: Literal["train", "eval"], **kwargs):
         if mode == "train" and self.augmentation:
             img = random_erasing(img, bbox)
             bbox = augment_bbox(bbox, img.shape[:2])
             img, bbox = rotate_image_and_bbox(img, bbox, max_angle=10)
 
-        img = self.crop_image(img, bbox, self.margin, self.square)
+        img = crop_image(img, bbox, self.margin, self.square)
 
         return (
             self.train_transform(img) if mode == "train" else self.eval_transform(img)

@@ -10,6 +10,7 @@ import pathlib
 import json
 from tqdm import tqdm
 from collections import defaultdict
+import random
 
 import numpy as np
 import cv2
@@ -26,16 +27,18 @@ class ScanNetDataset(Dataset):
         self,
         root_dir: str,
         mode: Literal["train", "val", "test"],
-        method: Literal["SupCon", "Triplet"],
         transform: Callable,
+        method: Literal["SupCon", "Triplet"] = None,
+        n_imgs_per_instance: int = 8,
         **kwargs,
     ):
         self.name = "ScanNet"
         self.root_dir = pathlib.Path(root_dir)
         self.mode = mode
-        self.method = method
+        self.method = method if mode == "train" else None
         self.transform = transform
         self.n_views = kwargs.get("n_views", 2)
+        self.n_imgs_per_instance = n_imgs_per_instance
 
         # self.scene_ids = self._get_scene_ids()
         self.scene_ids = ["scene0000_00"]
@@ -43,9 +46,16 @@ class ScanNetDataset(Dataset):
         print("-" * 80)
         print(f"ScanNet dataset path: '{root_dir}'")
         print(f"- Mode: {mode}, Method: {method}, # of scenes: {len(self.scene_ids)}")
-        print("-" * 80)
 
         self._load_dataset()
+
+        if self.mode in ["val", "test"]:
+            self._adjust_instance_images()
+            print(
+                f"Adjusted the number of images per instance: {len(self.image_files)}"
+            )
+
+        print("-" * 80)
 
     def _get_scene_ids(self):
         if self.mode == "train":
@@ -113,6 +123,37 @@ class ScanNetDataset(Dataset):
                         self.labels.append(label)
                         self.bboxes.append(instance_data["bbox"])
                         self.segmentations.append(instance_data["segmentation"])
+
+    def _adjust_instance_images(self):
+        # filter out instances with less than n_imgs_per_instance images
+        filtered_instance_indices_map = defaultdict(lambda: defaultdict(list))
+        for class_name, label_map in self.instance_indices_map.items():
+            for label, indices in label_map.items():
+                if len(indices) < self.n_imgs_per_instance:
+                    continue
+
+                filtered_instance_indices_map[class_name][label] = random.sample(
+                    indices, self.n_imgs_per_instance
+                )
+
+        # reorganize the data
+        new_idx = 0
+        for class_name, label_map in filtered_instance_indices_map.items():
+            for label, indices in label_map.items():
+                for idx in indices:
+                    self.image_files[new_idx] = self.image_files[idx]
+                    self.classes[new_idx] = class_name
+                    self.labels[new_idx] = label
+                    self.bboxes[new_idx] = self.bboxes[idx]
+                    self.segmentations[new_idx] = self.segmentations[idx]
+                    new_idx += 1
+
+        self.instance_indices_map = filtered_instance_indices_map
+        self.image_files = self.image_files[:new_idx]
+        self.classes = self.classes[:new_idx]
+        self.labels = self.labels[:new_idx]
+        self.bboxes = self.bboxes[:new_idx]
+        self.segmentations = self.segmentations[:new_idx]
 
     def get_positive_idx(self, idx):
         pos_cls = self.classes[idx]
