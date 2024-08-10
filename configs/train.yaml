@@ -1,0 +1,26 @@
+# @package _global_
+
+# specify here default configuration
+# order of defaults determines the order in which configs override each other
+defaults:
+  - _self_
+  - dataset: coda
+  - model: clover
+  - paths: default
+  - experiment: null
+
+task_name: "train"
+name: "default"
+
+train:
+  max_epochs: 100
+  log_interval: 10
+  early_stopping: 10
+
+data:
+  batch_size: 4
+  num_workers: 4
+
+ckpt_path: null
+
+seed: null

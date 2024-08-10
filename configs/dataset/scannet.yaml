@@ -1,0 +1,2 @@
+_target_: src.datasets.ScanNetDataset
+root_dir: ${paths.data_dir}/ScanNet

@@ -1,0 +1,37 @@
+_target_: src.models.CLOVER
+
+net:
+  _target_: src.models.backbones.ContrastiveViT
+  name: "vit_b_16"
+  pretrained: true
+  in_channels: 3
+  image_size: 224
+  head: "mlp"
+  proj_dim: 128
+
+criterion: 
+  _target_: src.losses.SupConLoss
+  name: "SupCon"
+  temperature: 0.07
+  contrast_mode: all
+  base_temperature: 0.07
+
+optimizer:
+  _target_: torch.optim.SGD
+  _partial_: true
+  lr: 0.01
+  momentum: 0.9
+  weight_decay: 1e-4
+
+scheduler:
+  _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+  _partial_: true
+  T_max: 20
+  eta_min: 0.001
+
+img_transform:
+  _target_: src.utils.img_transform.TransformCLOVER
+  img_size: 224
+  margin: 10
+  square: true
+  augmentation: true
