@@ -1,12 +1,12 @@
 import random
 
-all_scenes = [f"scene{i:04d}_00" for i in range(210)]
+all_scenes = [f"scene{i:04d}_00" for i in range(240)]
 
 random.shuffle(all_scenes)
 
-num_train = 150
+num_train = 170
 num_val = 10
-num_test = 50
+num_test = 60
 
 train_scenes = all_scenes[:num_train]
 val_scenes = all_scenes[num_train : num_train + num_val]
