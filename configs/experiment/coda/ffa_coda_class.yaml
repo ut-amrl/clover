@@ -1,0 +1,17 @@
+# @package _global_
+
+defaults:
+  - override /dataset: coda_class
+  - override /model: ffa
+
+data:
+  batch_size: 64
+
+#
+name: "CODa_class_FFA"
+tags:
+  - "CODa"
+  - "class"
+  - "FFA"
+
+seed: 42

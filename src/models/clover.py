@@ -3,7 +3,7 @@ from typing import Literal
 import torch
 import torch.nn as nn
 
-from src.losses import SupConLoss, TripletLoss
+from losses import SupConLoss, TripletLoss
 
 
 class CLOVER(nn.Module):

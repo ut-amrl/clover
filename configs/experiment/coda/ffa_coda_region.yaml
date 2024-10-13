@@ -1,0 +1,17 @@
+# @package _global_
+
+defaults:
+  - override /dataset: coda_region
+  - override /model: ffa
+
+data:
+  batch_size: 64
+
+#
+name: "CODa_region_FFA"
+tags:
+  - "CODa"
+  - "region"
+  - "FFA"
+
+seed: 42

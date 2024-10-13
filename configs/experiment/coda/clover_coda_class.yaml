@@ -1,0 +1,17 @@
+# @package _global_
+
+defaults:
+  - override /dataset: coda_class
+  - override /model: clover
+
+data:
+  batch_size: 64
+
+#
+name: "CODa_class_CLOVER"
+tags:
+  - "CODa"
+  - "class"
+  - "CLOVER"
+
+seed: 42

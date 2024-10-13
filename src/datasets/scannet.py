@@ -6,6 +6,7 @@ Description: ScanNet dataset loader for CLOVER
 
 from loguru import logger
 from typing import Literal, Callable
+
 import pathlib
 import json
 from tqdm import tqdm
@@ -15,6 +16,7 @@ import random
 import numpy as np
 import cv2
 
+import torch
 from torch.utils.data import Dataset
 
 
@@ -82,6 +84,7 @@ class ScanNetDataset(Dataset):
     def _load_dataset(self):
         unique_label_map = {}
         unique_label = 0
+        class_name_id_map = {}
 
         # {class: {label: [idx1, idx2, ...]}}
         self.instance_indices_map = defaultdict(lambda: defaultdict(list))
@@ -115,10 +118,13 @@ class ScanNetDataset(Dataset):
                             unique_label += 1
                         label = unique_label_map[(scene_id, instance_id)]
 
+                        if class_name not in class_name_id_map:
+                            class_name_id_map[class_name] = len(class_name_id_map)
+
                         idx = len(self.image_files)
                         self.instance_indices_map[class_name][label].append(idx)
                         self.image_files.append(img_file)
-                        self.classes.append(class_name)
+                        self.classes.append(class_name_id_map[class_name])
                         self.labels.append(label)
                         self.bboxes.append(instance_data["bbox"])
                         self.segmentations.append(instance_data["segmentation"])
@@ -160,23 +166,20 @@ class ScanNetDataset(Dataset):
         return np.random.choice(self.instance_indices_map[pos_cls][pos_label], 1)[0]
 
     def get_negative_idx(self, idx):
-        class_name = self.classes[idx]
-        label = self.labels[idx]
-
         # Same class vs. different class for negative samples
-        neg_cls = class_name
-        if np.random.rand() < 0.5 or len(self.instance_indices_map[neg_cls]) < 2:
+        neg_cls = self.classes[idx]
+        if len(self.instance_indices_map[neg_cls]) < 2 or np.random.rand() < 0.5:
             potential_classes = [
                 cls
                 for cls in self.instance_indices_map.keys()
-                if cls != class_name and len(self.instance_indices_map[cls]) > 1
+                if cls != self.classes[idx] and len(self.instance_indices_map[cls]) > 1
             ]
             neg_cls = np.random.choice(potential_classes)
 
         # remove the positive label
         neg_labels = list(self.instance_indices_map[neg_cls].keys())
-        if label in neg_labels:
-            neg_labels.remove(label)
+        if self.labels[idx] in neg_labels:
+            neg_labels.remove(self.labels[idx])
 
         neg_label = np.random.choice(neg_labels, 1)[0]
         return np.random.choice(self.instance_indices_map[neg_cls][neg_label], 1)[0]
@@ -185,12 +188,9 @@ class ScanNetDataset(Dataset):
         return len(self.image_files)
 
     def __getitem__(self, idx):
-
-        def load_img(img_file):
-            img = cv2.imread(img_file, cv2.IMREAD_COLOR)
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            return img
-
+        # Get indices for the views
+        # SupCon: [n_view1, n_view2, ...]
+        # Triplet: [anchor, positive, negative]
         indices = [idx]
         if self.mode == "train":
             if self.method == "SupCon":
@@ -204,9 +204,12 @@ class ScanNetDataset(Dataset):
             else:
                 raise ValueError(f"Invalid method: {self.method}")
 
+        def load_img(img_file):
+            img = cv2.imread(img_file, cv2.IMREAD_COLOR)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            return img
+
         data = {
-            "label": self.labels[idx],
-            "class": self.classes[idx],
             "images": [
                 self.transform(
                     img=load_img(self.image_files[i]),
@@ -216,30 +219,44 @@ class ScanNetDataset(Dataset):
                 )
                 for i in indices
             ],
+            "label": torch.tensor(self.labels[idx], dtype=torch.long),
+            "class": torch.tensor(self.classes[idx], dtype=torch.long),
         }
 
         return data
 
 
 if __name__ == "__main__":
-    dataset = ScanNetDataset("data/ScanNet", "train")
 
     import matplotlib.pyplot as plt
 
+    def transform(img, bbox, segmentation, mode):
+        return img, bbox
+
+    dataset = ScanNetDataset(
+        "data/ScanNet", "train", transform=transform, method="Triplet"
+    )
+
     for i in range(10):
         data = dataset[i]
-        img = data["anc_img"]
-        pos_img = data["pos_img"]
+
+        anc_img = data["images"][0][0]
+        pos_img = data["images"][1][0]
+        neg_img = data["images"][2][0]
+
+        anc_bbox = data["images"][0][1]
+        pos_bbox = data["images"][1][1]
+        neg_bbox = data["images"][2][1]
 
         fig, axes = plt.subplots(1, 3, figsize=(10, 5))
-        axes[0].imshow(img)
+        axes[0].imshow(anc_img)
         axes[0].axis("off")
         axes[0].set_title("Anchor")
         axes[0].add_patch(
             plt.Rectangle(
-                (data["anc_bbox"][0], data["anc_bbox"][1]),
-                data["anc_bbox"][2] - data["anc_bbox"][0],
-                data["anc_bbox"][3] - data["anc_bbox"][1],
+                (anc_bbox[0], anc_bbox[1]),
+                anc_bbox[2] - anc_bbox[0],
+                anc_bbox[3] - anc_bbox[1],
                 linewidth=1,
                 edgecolor="r",
                 facecolor="none",
@@ -250,22 +267,22 @@ if __name__ == "__main__":
         axes[1].set_title("Positive")
         axes[1].add_patch(
             plt.Rectangle(
-                (data["pos_bbox"][0], data["pos_bbox"][1]),
-                data["pos_bbox"][2] - data["pos_bbox"][0],
-                data["pos_bbox"][3] - data["pos_bbox"][1],
+                (pos_bbox[0], pos_bbox[1]),
+                pos_bbox[2] - pos_bbox[0],
+                pos_bbox[3] - pos_bbox[1],
                 linewidth=1,
                 edgecolor="r",
                 facecolor="none",
             )
         )
-        axes[2].imshow(data["neg_img"])
+        axes[2].imshow(neg_img)
         axes[2].axis("off")
         axes[2].set_title("Negative")
         axes[2].add_patch(
             plt.Rectangle(
-                (data["neg_bbox"][0], data["neg_bbox"][1]),
-                data["neg_bbox"][2] - data["neg_bbox"][0],
-                data["neg_bbox"][3] - data["neg_bbox"][1],
+                (neg_bbox[0], neg_bbox[1]),
+                neg_bbox[2] - neg_bbox[0],
+                neg_bbox[3] - neg_bbox[1],
                 linewidth=1,
                 edgecolor="r",
                 facecolor="none",

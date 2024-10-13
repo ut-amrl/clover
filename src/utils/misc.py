@@ -1,5 +1,6 @@
 import os
 import random
+from rich import print as rprint
 
 import numpy as np
 import torch
@@ -25,20 +26,33 @@ class AverageMeter(object):
 
 
 def load_model(model, ckpt_path):
-    print(f"==> Loading model from {ckpt_path}\n")
-    ckpt = torch.load(ckpt_path, map_location="cpu")
-    state_dict = {k.replace("module.", ""): v for k, v in ckpt["model"].items()}
-    model.net.load_state_dict(state_dict)
+    rprint(f"==> Loading model from {ckpt_path}")
+    try:
+        ckpt = torch.load(ckpt_path, map_location="cpu")
+        model.net.load_state_dict(ckpt["net"])
+        if hasattr(model, "optimizer"):
+            model.optimizer.load_state_dict(ckpt["optimizer"])
+        if hasattr(model, "scheduler"):
+            model.scheduler.load_state_dict(ckpt["scheduler"])
+        if "cfg" in ckpt:
+            model.cfg = ckpt["cfg"]
+    except Exception as e:
+        rprint(f"Error loading model: {e}")
+        raise e
 
 
 def save_model(model, epoch, cfg, ckpt_path):
+    rprint(f"==> Saving model to {ckpt_path}")
     os.makedirs(os.path.dirname(ckpt_path), exist_ok=True)
 
-    print(f"==> Saving model to {ckpt_path}\n")
     state = {
         "net": model.net.state_dict(),
-        "optimizer": model.optimizer.state_dict(),
-        "scheduler": model.scheduler.state_dict(),
+        "optimizer": (
+            model.optimizer.state_dict() if hasattr(model, "optimizer") else None
+        ),
+        "scheduler": (
+            model.scheduler.state_dict() if hasattr(model, "scheduler") else None
+        ),
         "epoch": epoch,
         "cfg": cfg,
     }

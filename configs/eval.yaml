@@ -7,14 +7,16 @@ defaults:
   - dataset: coda
   - model: clover
   - paths: default
+  - hydra: default
   - experiment: null
-
-task_name: "eval"
-name: "default"
 
 data:
   num_workers: 4
 
-ckpt_path: null
+project_name: "Object Identification (CLOVER)"
+task_name: "eval"
+name: "default"
 
+ckpt_path: null
 seed: null
+wandb: True

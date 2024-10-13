@@ -1,0 +1,7 @@
+_target_: datasets.CODataset
+root_dir: ${paths.data_dir}/CODa
+split: "random"
+train_ratio: 0.7
+skip_train: 5
+skip_val: 50
+skip_test: 50

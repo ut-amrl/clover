@@ -7,19 +7,21 @@ defaults:
   - dataset: coda
   - model: clover
   - paths: default
+  - hydra: default
   - experiment: null
 
-task_name: "train"
-name: "default"
+data:
+  num_workers: 4
 
 train:
   max_epochs: 100
   log_interval: 10
   early_stopping: 10
 
-data:
-  num_workers: 4
+project_name: "Object Identification (CLOVER)"
+task_name: "train"
+name: "default"
 
 ckpt_path: null
-
 seed: null
+wandb: True

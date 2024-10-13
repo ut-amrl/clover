@@ -46,7 +46,7 @@ class SupConLoss(nn.Module):
         if labels is not None and mask is not None:
             raise ValueError("Cannot define both `labels` and `mask`")
         elif labels is None and mask is None:  # SimCLR
-            mask = torch.eye(batch_size, dtype=torch.float32).to(device)
+            mask = torch.eye(batch_size, dtype=torch.float).to(device)
         elif labels is not None:  # SupCon
             labels = labels.contiguous().view(-1, 1)
             if labels.shape[0] != batch_size:

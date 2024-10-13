@@ -1,0 +1,17 @@
+# @package _global_
+
+defaults:
+  - override /dataset: coda_sequence
+  - override /model: reobj
+
+data:
+  batch_size: 48
+
+#
+name: "CODa_sequence_ReOBJ"
+tags:
+  - "CODa"
+  - "sequence"
+  - "ReOBJ"
+
+seed: 42

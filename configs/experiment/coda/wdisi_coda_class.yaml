@@ -1,0 +1,17 @@
+# @package _global_
+
+defaults:
+  - override /dataset: coda_class
+  - override /model: wdisi
+
+data:
+  batch_size: 48
+
+#
+name: "CODa_class_WDISI"
+tags:
+  - "CODa"
+  - "class"
+  - "WDISI"
+
+seed: 42

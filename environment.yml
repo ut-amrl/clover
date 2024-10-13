@@ -1,0 +1,23 @@
+name: clover
+channels:
+  - pytorch
+  - nvidia
+  - defaults
+dependencies:
+  - python=3.10
+  - pytorch
+  - torchvision
+  - pytorch-cuda=12.4
+  - hydra-core
+  - opencv
+  - pip
+  - pip:
+    - numpy<2
+    - scipy
+    - matplotlib
+    - loguru
+    - tqdm
+    - natsort
+    - rich
+    - wandb
+    - black

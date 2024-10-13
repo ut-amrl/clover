@@ -1,14 +1,15 @@
-_target_: src.models.WhereDidISeeIt
+_target_: models.WhereDidISeeIt
+name: WDISI
 
 net:
-  _target_: src.models.nets.WDISINet
+  _target_: models.nets.WDISINet
   name: "vit_b_16"
   pretrained: true
   num_heads: 8
   img_size: 224
 
 criterion:
-  _target_: src.losses.TripletLoss
+  _target_: losses.TripletLoss
   name: "Triplet"
   margin: 1.0
 
@@ -26,7 +27,7 @@ scheduler:
   eta_min: 0.001
 
 img_transform:
-  _target_: src.transforms.TransformReOBJ
+  _target_: transforms.TransformReOBJ
   img_size: 224
   margin: 10
   square: false

@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from src.losses import SupConLoss, TripletLoss
+from losses import SupConLoss, TripletLoss
 
 
 class WhereDidISeeIt(nn.Module):

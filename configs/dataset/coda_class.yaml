@@ -1,0 +1,9 @@
+_target_: datasets.CODataset
+root_dir: ${paths.data_dir}/CODa
+split: "class"
+train_classes: ["Tree", "Pole", "Bollard"]
+val_classes: ${dataset.train_classes}
+test_classes: ["Informational_Sign", "Traffic_Sign"]
+skip_train: 5
+skip_val: 50
+skip_test: 50

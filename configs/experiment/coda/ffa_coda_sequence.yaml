@@ -1,0 +1,17 @@
+# @package _global_
+
+defaults:
+  - override /dataset: coda_sequence
+  - override /model: ffa
+
+data:
+  batch_size: 64
+
+#
+name: "CODa_sequence_FFA"
+tags:
+  - "CODa"
+  - "sequence"
+  - "FFA"
+
+seed: 42
