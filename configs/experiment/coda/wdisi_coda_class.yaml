@@ -7,6 +7,9 @@ defaults:
 data:
   batch_size: 48
 
+train:
+  clip_grad_norm: 5
+
 #
 name: "CODa_class_WDISI"
 tags:
