@@ -2,9 +2,7 @@ from typing import Literal
 
 import torch
 import torch.nn as nn
-
 from torchvision.models import vit_b_16, vit_b_32, vit_l_16, vit_l_32
-
 
 model_dict = {
     "vit_b_16": [vit_b_16, 768],

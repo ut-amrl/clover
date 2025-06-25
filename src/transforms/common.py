@@ -1,7 +1,7 @@
 from typing import List, Tuple
 
-import numpy as np
 import cv2
+import numpy as np
 
 
 def crop_image(img: np.ndarray, bbox: List[int], margin: int, square: bool):

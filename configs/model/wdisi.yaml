@@ -1,8 +1,8 @@
-_target_: models.WhereDidISeeIt
+_target_: models.wdisi.WhereDidISeeIt
 name: WDISI
 
 net:
-  _target_: models.nets.WDISINet
+  _target_: models.nets.wdisi_net.WDISINet
   name: "vit_b_16"
   pretrained: true
   num_heads: 8

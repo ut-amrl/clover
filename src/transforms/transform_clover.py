@@ -1,11 +1,10 @@
-from typing import Literal, List, Tuple
-import random
 import math
+import random
+from typing import List, Literal, Tuple
 
-import numpy as np
 import cv2
+import numpy as np
 from PIL import Image
-
 from torchvision import transforms
 
 from .common import crop_image

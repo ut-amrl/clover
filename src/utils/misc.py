@@ -1,9 +1,9 @@
 import os
 import random
-from rich import print as rprint
 
 import numpy as np
 import torch
+from rich import print as rprint
 
 
 class AverageMeter(object):

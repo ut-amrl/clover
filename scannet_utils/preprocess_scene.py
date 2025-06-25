@@ -1,22 +1,19 @@
 """Preprocess ScanNet scenes for object re-identification"""
 
 import argparse
-import pathlib
-from natsort import natsorted
 import json
-import jsbeautifier
-from tqdm import tqdm
+import pathlib
 
+import cv2
+import jsbeautifier
 import numpy as np
 
-import matplotlib.pyplot as plt
-import cv2
-
 ################################ Build SAM2 model ##############################
-
 import torch
+from natsort import natsorted
 from sam2.build_sam import build_sam2
 from sam2.sam2_image_predictor import SAM2ImagePredictor
+from tqdm import tqdm
 
 # use bfloat16 for the entire notebook
 torch.autocast(device_type="cuda", dtype=torch.bfloat16).__enter__()
@@ -26,7 +23,7 @@ if torch.cuda.get_device_properties(0).major >= 8:
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
 
-sam2_checkpoint = "../../others/segment-anything-2/checkpoints/sam2_hiera_large.pt"
+sam2_checkpoint = "../others/segment-anything-2/checkpoints/sam2_hiera_large.pt"
 model_cfg = "sam2_hiera_l.yaml"
 sam2_model = build_sam2(model_cfg, sam2_checkpoint, device="cuda")
 SAM2_PREDICTOR = SAM2ImagePredictor(sam2_model)
@@ -41,8 +38,10 @@ EXCLUDE_LABELS = {
     "doorframe",
     "door",
     "curtain",
+    "curtains",
     "kitchen counter",
     "sink",
+    "person",
 }
 
 # config for filtering instances

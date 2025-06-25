@@ -1,14 +1,18 @@
-_target_: models.CLOVER
+_target_: models.clover.CLOVER
 name: CLOVER
 
 net:
-  _target_: models.nets.ContrastiveViT
-  name: "vit_b_16"
-  pretrained: true
-  in_channels: 3
-  image_size: 224
-  head: "mlp"
-  proj_dim: 128
+  _target_: models.nets.clover_net.CLOVER_Net
+  sela_args:
+    _target_: models.selavpr.encoder.SelaEncoderArgs
+    foundation_model_path: "pretrained_models/dinov2_vitl14_pretrain.pth"
+  content_mlp_layers: 1
+  content_length: 1024
+  content_mlp_change_len_last_layer: True
+  use_projection_head_for_learning_content: True
+  projection_head_for_learning_content_layers: 1
+  projection_head_for_learning_content_dim: 128
+  use_content_head: True
 
 criterion: 
   _target_: losses.SupConLoss
@@ -20,7 +24,7 @@ criterion:
 optimizer:
   _target_: torch.optim.SGD
   _partial_: true
-  lr: 0.01
+  lr: 0.001
   momentum: 0.9
   weight_decay: 1e-4
 

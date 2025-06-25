@@ -1,11 +1,10 @@
 from typing import Literal
 
 import numpy as np
-
-from torchvision import transforms
 from PIL import Image
+from torchvision import transforms
 
-from .common import segment_to_mask, crop_image
+from .common import crop_image, segment_to_mask
 
 
 class TransformReOBJ:

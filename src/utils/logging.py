@@ -1,10 +1,10 @@
 import os
 import pathlib
 
-import rich.tree
 import rich.syntax
-from omegaconf import DictConfig, OmegaConf
+import rich.tree
 import wandb
+from omegaconf import DictConfig, OmegaConf
 
 
 def print_config_tree(cfg: DictConfig, save_to_file: bool = False):

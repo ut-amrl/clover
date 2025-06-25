@@ -1,22 +1,20 @@
-from rich import print as rprint
-from rich.console import Console
-
 import os
 import time
-from tqdm import tqdm
 
 import hydra
-from omegaconf import DictConfig
-import wandb
-
 import torch
+import wandb
+from omegaconf import DictConfig
+from rich import print as rprint
+from rich.console import Console
 from torch.backends import cudnn
-from torch.utils.data import DataLoader
 from torch.nn.utils import clip_grad_norm_
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 
-from utils.metric import get_top_indices
 from utils.logging import print_config_tree
-from utils.misc import seed_everything, AverageMeter, load_model, save_model
+from utils.metric import get_top_indices
+from utils.misc import AverageMeter, load_model, save_model, seed_everything
 
 
 def train(model, train_dataloader, val_dataloader, cfg):
@@ -51,15 +49,14 @@ def train(model, train_dataloader, val_dataloader, cfg):
             if cfg.get("wandb"):
                 wandb.log({"train/loss": losses.avg}, step=epoch)
 
-            if idx % cfg.train.log_interval == 0:
-                rprint(
-                    f"Epoch: [{epoch}/{cfg.train.max_epochs}] "
-                    f"Step: [{idx}/{len(train_dataloader)}] "
-                    f"Loss: {losses.avg:.4f} "
-                    f"Batch Time [sec]: {batch_time.avg:.2f} "
-                    f"Data Time [sec]: {data_time.avg:.2f}",
-                    end="\r",
-                )
+            rprint(
+                f"Epoch: [{epoch}/{cfg.train.max_epochs}] "
+                f"Step: [{idx}/{len(train_dataloader)}] "
+                f"Loss: {losses.avg:.4f} "
+                f"Batch Time [sec]: {batch_time.avg:.2f} "
+                f"Data Time [sec]: {data_time.avg:.2f}",
+                end="\r",
+            )
 
         # Validation
         val_acc = validate(model, val_dataloader, cfg, epoch)
@@ -72,7 +69,7 @@ def train(model, train_dataloader, val_dataloader, cfg):
             save_model(model, epoch, cfg, ckpt_path)
 
         # Save last model
-        ckpt_path = os.path.join(cfg.paths.output_dir, "ckpt", f"last.pth")
+        ckpt_path = os.path.join(cfg.paths.output_dir, "ckpt", "last.pth")
         save_model(model, epoch, cfg, ckpt_path)
 
         # update learning rate
@@ -148,9 +145,7 @@ def validate(model, val_dataloader, cfg, epoch=0):
 
         # Get top indices
         r_indices = torch.cat((same_label_indices, diff_label_indices), dim=0)
-        top_indices = get_top_indices(
-            features, q_idx, r_indices, method=model.similarity_type
-        )
+        top_indices = get_top_indices(features, q_idx, r_indices, method=model.similarity_type)
 
         # Update metrics
         hits = torch.eq(labels[top_indices], q_label)
@@ -166,7 +161,7 @@ def validate(model, val_dataloader, cfg, epoch=0):
     console = Console()
     for key, val in metrics.items():
         console.print(f" - [bold]{key}[/bold]: {val.avg:.4f}")
-    
+
     # Log to wandb
     if cfg.get("wandb"):
         log_dict = {f"val/{key}": meter.avg for key, meter in metrics.items()}
@@ -192,8 +187,8 @@ def main(cfg: DictConfig):
     if cfg.get("wandb"):
         wandb.init(
             entity="ut-amrl-amanda",
-            dir=cfg.paths.output_dir,   
-            project=cfg.project_name,
+            dir=cfg.paths.output_dir,
+            project=cfg.project,
             name=cfg.name,
             notes=cfg.paths.output_dir,
             tags=["train", *cfg.tags],

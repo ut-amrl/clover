@@ -8,7 +8,7 @@ train:
   clip_grad_norm: 5.0
 
 data:
-  batch_size: 48
+  batch_size: 12
 
 #
 name: "ScanNet_WDISI"

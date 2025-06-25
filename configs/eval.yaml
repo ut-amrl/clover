@@ -4,8 +4,8 @@
 # order of defaults determines the order in which configs override each other
 defaults:
   - _self_
-  - dataset: coda
   - model: clover
+  - dataset: coda
   - paths: default
   - hydra: default
   - experiment: null
@@ -13,7 +13,7 @@ defaults:
 data:
   num_workers: 4
 
-project_name: "Object Identification (CLOVER)"
+project_name: "CLOVER"
 task_name: "eval"
 name: "default"
 

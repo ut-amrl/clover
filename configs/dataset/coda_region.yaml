@@ -1,4 +1,4 @@
-_target_: datasets.CODataset
+_target_: datasets.coda.CODataset
 root_dir: ${paths.data_dir}/CODa
 split: "region"
 train_region: 

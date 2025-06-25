@@ -1,20 +1,18 @@
-from loguru import logger
-
 import os
-from tqdm import tqdm
 
 import hydra
-from omegaconf import DictConfig
-import wandb
-
 import torch
+import wandb
+from loguru import logger
+from omegaconf import DictConfig
 from torch.backends import cudnn
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
-from utils.logging import print_config_tree, save_test_metrics, log_test_metrics
-from utils.misc import seed_everything, AverageMeter, load_model
+from utils.env_variances import compute_viewpoint_difficulty, compute_weather_difference
+from utils.logging import log_test_metrics, print_config_tree, save_test_metrics
 from utils.metric import get_top_indices
-from utils.env_variances import compute_weather_difference, compute_viewpoint_difficulty
+from utils.misc import AverageMeter, load_model, seed_everything
 
 
 def test(model, test_dataloader, cfg):
@@ -93,9 +91,7 @@ def test(model, test_dataloader, cfg):
 
         # get top indices for all except the query index
         r_indices = torch.where(torch.arange(N) != q_idx)[0]
-        top_indices = get_top_indices(
-            features, q_idx, r_indices, method=model.similarity_type
-        )
+        top_indices = get_top_indices(features, q_idx, r_indices, method=model.similarity_type)
 
         ## Get Reference indices
         same_label_indices, ref_label_indices = None, None
@@ -180,7 +176,7 @@ def main(cfg: DictConfig):
         wandb.init(
             entity="ut-amrl-amanda",
             dir=cfg.paths.output_dir,
-            project=cfg.project_name,
+            project=cfg.project,
             name=cfg.name,
             notes=cfg.paths.output_dir,
             tags=["train", *cfg.tags],

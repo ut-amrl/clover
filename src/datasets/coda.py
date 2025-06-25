@@ -6,26 +6,23 @@ Description: UT Campus Object Dataset (CODA)
 Paper: https://arxiv.org/abs/2309.13549
 """
 
-from loguru import logger
-from typing import Literal, Callable
-
-import pathlib
 import json
+import pathlib
 import random
-from tqdm import tqdm
 from collections import defaultdict
-from natsort import natsorted
 from operator import itemgetter
+from typing import Callable, Literal
 
+import cv2
+import numpy as np
+import torch
+from loguru import logger
+from natsort import natsorted
+from rich import box
 from rich.console import Console
 from rich.table import Table
-from rich import box
-
-import numpy as np
-import cv2
-
-import torch
 from torch.utils.data import Dataset
+from tqdm import tqdm
 
 
 class CODataset(Dataset):

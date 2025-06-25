@@ -3,6 +3,17 @@ name = "CLOVER"
 version = "0.1.0"
 description = "CLOVER: Context-aware Long-term Object Viewpoint- and Environment- Invariant Representation Learning"
 readme = "README.md"
+dependencies = [
+    "torch==2.7.1",
+    "torchvision==0.22.1",
+    "transformers==4.52.4",
+    "opencv-python",
+    "numpy",
+    "hydra-core",
+    "loguru",
+    "rich",
+    "wandb",
+]
 
 [build-system]
 requires = ["setuptools>=42", "wheel"]
@@ -10,3 +21,19 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

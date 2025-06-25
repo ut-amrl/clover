@@ -4,6 +4,7 @@ https://github.com/s-tian/CUTE
 """
 
 from typing import Literal
+
 import torch
 import torch.nn.functional as F
 

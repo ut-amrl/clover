@@ -1,23 +1,14 @@
-"""
-Author: Dongmyeong Lee (domlee[at]utexas.edu)
-Date:   Aug 7, 2024
-Description: ScanNet dataset loader for CLOVER
-"""
-
-from loguru import logger
-from typing import Literal, Callable
-
-import pathlib
 import json
-from tqdm import tqdm
 from collections import defaultdict
-import random
+from pathlib import Path
+from typing import Callable, Literal
 
-import numpy as np
 import cv2
-
+import numpy as np
 import torch
+from loguru import logger
 from torch.utils.data import Dataset
+from tqdm import tqdm
 
 
 class ScanNetDataset(Dataset):
@@ -31,16 +22,15 @@ class ScanNetDataset(Dataset):
         mode: Literal["train", "val", "test"],
         transform: Callable,
         method: Literal["SupCon", "Triplet"] = None,
-        n_imgs_per_instance: int = 8,
         **kwargs,
     ):
         self.name = "ScanNet"
-        self.root_dir = pathlib.Path(root_dir)
         self.mode = mode
+        self.root_dir = Path(root_dir)
+
         self.method = method if mode == "train" else None
         self.transform = transform
         self.n_views = kwargs.get("n_views", 2)
-        self.n_imgs_per_instance = n_imgs_per_instance
 
         self.scene_ids = self._get_scene_ids()
 
@@ -49,12 +39,6 @@ class ScanNetDataset(Dataset):
         print(f"- Mode: {mode}, Method: {method}, # of scenes: {len(self.scene_ids)}")
 
         self._load_dataset()
-
-        if self.mode in ["val", "test"]:
-            self._adjust_instance_images()
-            print(
-                f"Adjusted the number of images per instance: {len(self.image_files)}"
-            )
 
         print("-" * 80)
 
@@ -87,13 +71,7 @@ class ScanNetDataset(Dataset):
         class_name_id_map = {}
 
         # {class: {label: [idx1, idx2, ...]}}
-        self.instance_indices_map = defaultdict(lambda: defaultdict(list))
-        self.image_files = []
-        self.classes = []
-        self.labels = []
-        self.bboxes = []
-        self.segmentations = []
-        self.vectors = []
+        tmp_instance_data = defaultdict(lambda: defaultdict(list))
 
         for scene_id in tqdm(self.scene_ids, desc=f"Loading {self.mode} dataset"):
             annotation_file = self.root_dir / "2d_instance" / f"{scene_id}.json"
@@ -105,60 +83,50 @@ class ScanNetDataset(Dataset):
             with open(annotation_file, "r") as f:
                 data = json.load(f)
 
-                for frame_data in data["frames"]:
-                    frame_id = frame_data["frameId"]
-                    img_file = str(sens_dir / f"frame-{frame_id:06d}.color.jpg")
+            for frame_data in data["frames"]:
+                frame_id = frame_data["frameId"]
+                img_file = str(sens_dir / f"frame-{frame_id:06d}.color.jpg")
 
-                    for instance_data in frame_data["instances"]:
-                        class_name = instance_data["label"]
-                        instance_id = instance_data["instanceId"]
+                for instance_data in frame_data["instances"]:
+                    class_name = instance_data["label"]
+                    instance_id = instance_data["instanceId"]
 
-                        if (scene_id, instance_id) not in unique_label_map:
-                            unique_label_map[(scene_id, instance_id)] = unique_label
-                            unique_label += 1
-                        label = unique_label_map[(scene_id, instance_id)]
+                    # assign globally unique label for the instance across all scenes
+                    label = unique_label_map.get((scene_id, instance_id), None)
+                    if label is None:
+                        label = unique_label
+                        unique_label_map[(scene_id, instance_id)] = label
+                        unique_label += 1
 
-                        if class_name not in class_name_id_map:
-                            class_name_id_map[class_name] = len(class_name_id_map)
+                    # assign globally unique class ID
+                    class_id = class_name_id_map.setdefault(class_name, len(class_name_id_map))
 
-                        idx = len(self.image_files)
-                        self.instance_indices_map[class_name][label].append(idx)
-                        self.image_files.append(img_file)
-                        self.classes.append(class_name_id_map[class_name])
-                        self.labels.append(label)
-                        self.bboxes.append(instance_data["bbox"])
-                        self.segmentations.append(instance_data["segmentation"])
+                    tmp_instance_data[class_id][label].append(
+                        {
+                            "img_file": img_file,
+                            "class_id": class_id,
+                            "label": label,
+                            "bbox": instance_data["bbox"],
+                            "segmentation": instance_data["segmentation"],
+                        }
+                    )
 
-    def _adjust_instance_images(self):
-        # filter out instances with less than n_imgs_per_instance images
-        filtered_instance_indices_map = defaultdict(lambda: defaultdict(list))
-        for class_name, label_map in self.instance_indices_map.items():
-            for label, indices in label_map.items():
-                if len(indices) < self.n_imgs_per_instance:
-                    continue
+        self.instance_indices_map = defaultdict(lambda: defaultdict(list))
+        self.image_files = []
+        self.classes, self.labels, self.bboxes, self.segmentations = [], [], [], []
+        for class_id, label_map in tmp_instance_data.items():
+            for label, samples in label_map.items():
+                if len(samples) < 2:
+                    continue  # skip singleton instances
 
-                filtered_instance_indices_map[class_name][label] = random.sample(
-                    indices, self.n_imgs_per_instance
-                )
-
-        # reorganize the data
-        new_idx = 0
-        for class_name, label_map in filtered_instance_indices_map.items():
-            for label, indices in label_map.items():
-                for idx in indices:
-                    self.image_files[new_idx] = self.image_files[idx]
-                    self.classes[new_idx] = class_name
-                    self.labels[new_idx] = label
-                    self.bboxes[new_idx] = self.bboxes[idx]
-                    self.segmentations[new_idx] = self.segmentations[idx]
-                    new_idx += 1
-
-        self.instance_indices_map = filtered_instance_indices_map
-        self.image_files = self.image_files[:new_idx]
-        self.classes = self.classes[:new_idx]
-        self.labels = self.labels[:new_idx]
-        self.bboxes = self.bboxes[:new_idx]
-        self.segmentations = self.segmentations[:new_idx]
+                for sample in samples:
+                    idx = len(self.image_files)
+                    self.image_files.append(sample["img_file"])
+                    self.classes.append(sample["class_id"])
+                    self.labels.append(sample["label"])
+                    self.bboxes.append(sample["bbox"])
+                    self.segmentations.append(sample["segmentation"])
+                    self.instance_indices_map[class_id][label].append(idx)
 
     def get_positive_idx(self, idx):
         pos_cls = self.classes[idx]
@@ -188,21 +156,20 @@ class ScanNetDataset(Dataset):
         return len(self.image_files)
 
     def __getitem__(self, idx):
-        # Get indices for the views
-        # SupCon: [n_view1, n_view2, ...]
-        # Triplet: [anchor, positive, negative]
+        """get positive and negative samples for the given index
+        'SupCon' method: returns multiple views of the same instance (view1, view2, ...)
+        'Triplet' method: returns (anchor, positive, negative)
+        """
         indices = [idx]
         if self.mode == "train":
             if self.method == "SupCon":
-                indices.extend(
-                    [self.get_positive_idx(idx) for _ in range(self.n_views - 1)]
-                )
+                indices.extend([self.get_positive_idx(idx) for _ in range(self.n_views - 1)])
             elif self.method == "Triplet":
                 pos_idx = self.get_positive_idx(idx)
                 neg_idx = self.get_negative_idx(idx)
                 indices.extend([pos_idx, neg_idx])
             else:
-                raise ValueError(f"Invalid method: {self.method}")
+                raise ValueError(f"Not supported method: {self.method}")
 
         def load_img(img_file):
             img = cv2.imread(img_file, cv2.IMREAD_COLOR)
@@ -227,15 +194,12 @@ class ScanNetDataset(Dataset):
 
 
 if __name__ == "__main__":
-
     import matplotlib.pyplot as plt
 
     def transform(img, bbox, segmentation, mode):
         return img, bbox
 
-    dataset = ScanNetDataset(
-        "data/ScanNet", "train", transform=transform, method="Triplet"
-    )
+    dataset = ScanNetDataset("data/ScanNet", "train", transform=transform, method="Triplet")
 
     for i in range(10):
         data = dataset[i]

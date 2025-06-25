@@ -1,0 +1,16 @@
+# @package _global_
+
+defaults:
+  - override /model: clover
+  - override /dataset: scannet
+
+data:
+  batch_size: 10
+
+ckpt: null
+wandb: True
+
+name: "SelaContrOnly_ScanNet_from_larger_bsz40_SGD_lr0.001"
+tags:
+  - "ScanNet"
+  - "CLOVER"
