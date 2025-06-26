@@ -10,6 +10,8 @@ We will be publishing our finalized code here at the end of March 2025. If you w
 conda create -n clover python=3.12
 conda activate clover
 pip install -e .
+# or
+pip install -e .[dev]
 ```
 
 ```bash
