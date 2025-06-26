@@ -10,8 +10,6 @@ train:
 data:
   batch_size: 12
 
-#
-name: "ScanNet_ReOBJ"
 tags:
   - "ScanNet"
   - "ReOBJ"

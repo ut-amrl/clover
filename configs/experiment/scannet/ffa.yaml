@@ -7,8 +7,6 @@ defaults:
 data:
   batch_size: 8
 
-#
-name: "ScanNet_FFA"
 tags:
   - "ScanNet"
   - "FFA"

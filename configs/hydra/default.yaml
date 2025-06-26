@@ -1,5 +1,5 @@
 run:
-  dir: ${paths.log_dir}/${task_name}/runs/${name}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+  dir: ${paths.log_dir}/${task}/runs/${paths.expdir}
 sweep:
-  dir: ${paths.log_dir}/${task_name}/multiruns/${name}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+  dir: ${paths.log_dir}/${task}/multiruns/${paths.expdir}
   subdir: ${hydra.job.num}

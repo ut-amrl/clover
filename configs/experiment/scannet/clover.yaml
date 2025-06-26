@@ -5,12 +5,8 @@ defaults:
   - override /dataset: scannet
 
 data:
-  batch_size: 10
+  batch_size: 16
 
-ckpt: null
-wandb: True
-
-name: "SelaContrOnly_ScanNet_from_larger_bsz40_SGD_lr0.001"
 tags:
   - "ScanNet"
   - "CLOVER"

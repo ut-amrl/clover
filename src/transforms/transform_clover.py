@@ -34,9 +34,7 @@ class TransformCLOVER:
                     hue=(-0.2, 0.2),
                 ),
                 transforms.ToTensor(),
-                transforms.Normalize(
-                    mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
-                ),
+                transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
             ]
         )
         self.eval_transform = transforms.Compose(
@@ -44,9 +42,7 @@ class TransformCLOVER:
                 transforms.ToPILImage(),
                 transforms.Resize(self.img_size, interpolation=Image.BICUBIC),
                 transforms.ToTensor(),
-                transforms.Normalize(
-                    mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
-                ),
+                transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
             ]
         )
 
@@ -58,9 +54,7 @@ class TransformCLOVER:
 
         img = crop_image(img, bbox, self.margin, self.square)
 
-        return (
-            self.train_transform(img) if mode == "train" else self.eval_transform(img)
-        )
+        return self.train_transform(img) if mode == "train" else self.eval_transform(img)
 
 
 ### augmentation functions
@@ -106,17 +100,13 @@ def random_erasing(img, bbox: List[int], p=0.8, s=(0.1, 0.3), r=(0.3, 3), value=
                     0, 256, (h, w, imgC), dtype=np.uint8
                 )
             else:
-                img[y : y + h, x : x + w, :] = np.full(
-                    (h, w, imgC), value, dtype=np.uint8
-                )
+                img[y : y + h, x : x + w, :] = np.full((h, w, imgC), value, dtype=np.uint8)
             break
 
     return img
 
 
-def augment_bbox(
-    bbox: List[int], image_size: Tuple[int, int], shift_ratio: float = 0.1
-):
+def augment_bbox(bbox: List[int], image_size: Tuple[int, int], shift_ratio: float = 0.1):
     """
     Shift the bounding box by a random ratio of its width and height.
     Args:

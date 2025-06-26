@@ -7,7 +7,8 @@ data_dir: ${paths.root_dir}/data/
 log_dir: ${paths.root_dir}/output/
 
 # path to output directory
-output_dir: ${paths.log_dir}/${task_name}/runs/${name}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+expdir: ${dataset.name}/${model.name}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+output_dir: ${paths.log_dir}/${task}/runs/${.expdir}
 
 # path to working directory
 work_dir: ${hydra:runtime.cwd}

@@ -6,7 +6,6 @@ import torch
 import wandb
 from omegaconf import DictConfig
 from rich import print as rprint
-from rich.console import Console
 from torch.backends import cudnn
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.data import DataLoader
@@ -20,7 +19,7 @@ from utils.misc import AverageMeter, load_model, save_model, seed_everything
 def train(model, train_dataloader, val_dataloader, cfg):
     best_acc = 0
     best_epoch = 0
-    for epoch in range(1, cfg.train.max_epochs + 1):
+    for epoch in range(cfg.train.max_epochs):
         # Train for one epoch
         model.net.train()
 
@@ -30,6 +29,7 @@ def train(model, train_dataloader, val_dataloader, cfg):
 
         end = time.time()
         for idx, batch in enumerate(train_dataloader):
+            step = epoch * len(train_dataloader) + idx
             data_time.update(time.time() - end)
 
             # Forward pass
@@ -46,8 +46,8 @@ def train(model, train_dataloader, val_dataloader, cfg):
             batch_time.update(time.time() - end)
             end = time.time()
 
-            if cfg.get("wandb"):
-                wandb.log({"train/loss": losses.avg}, step=epoch)
+            if cfg.wandb:
+                wandb.log({"train/loss": loss.item()}, step=step)
 
             rprint(
                 f"Epoch: [{epoch}/{cfg.train.max_epochs}] "
@@ -82,9 +82,12 @@ def train(model, train_dataloader, val_dataloader, cfg):
             break
 
 
+@torch.no_grad()
 def validate(model, val_dataloader, cfg, epoch=0):
     print("\n\n * Validating the model...")
     model.net.eval()
+
+    dataset_name = getattr(val_dataloader.dataset, "name", None)
 
     # Define metrics
     topk = [1, 5, 10]
@@ -97,27 +100,29 @@ def validate(model, val_dataloader, cfg, epoch=0):
 
     # Compute features
     N = len(val_dataloader.dataset)
-    features = torch.zeros(N, model.net.feat_dim)
-    labels = torch.zeros(N, dtype=torch.long)
+    features = torch.zeros(N, model.net.feat_dim, device="cpu")
+    labels = torch.zeros(N, dtype=torch.long, device="cpu")
+
     # additional info (only for CODa)
-    info = {
-        "classes": torch.zeros(N, dtype=torch.long),
-        "sequences": torch.zeros(N, dtype=torch.long),
-        "weathers": torch.zeros(N, dtype=torch.long),
-        "viewpoints": torch.zeros((N, 3), dtype=torch.float),
-    }
-    with torch.no_grad():
-        curr_idx = 0
-        for batch in tqdm(val_dataloader, desc="computing features"):
-            bsz = batch["label"].size(0)
-            features[curr_idx : curr_idx + bsz] = model.forward(batch, mode="eval")
-            labels[curr_idx : curr_idx + bsz] = batch["label"]
-            if val_dataloader.dataset.name == "CODa":
-                info["classes"][curr_idx : curr_idx + bsz] = batch["class"]
-                info["sequences"][curr_idx : curr_idx + bsz] = batch["sequence"]
-                info["weathers"][curr_idx : curr_idx + bsz] = batch["weather"]
-                info["viewpoints"][curr_idx : curr_idx + bsz] = batch["viewpoint"]
-            curr_idx += bsz
+    if dataset_name == "CODa":
+        info = {
+            "classes": torch.zeros(N, dtype=torch.long, device="cpu"),
+            "sequences": torch.zeros(N, dtype=torch.long, device="cpu"),
+            "weathers": torch.zeros(N, dtype=torch.long, device="cpu"),
+            "viewpoints": torch.zeros((N, 3), dtype=torch.float, device="cpu"),
+        }
+
+    curr_idx = 0
+    for batch in tqdm(val_dataloader, desc="computing features"):
+        bsz = batch["label"].size(0)
+        features[curr_idx : curr_idx + bsz] = model.forward(batch, mode="eval").cpu()
+        labels[curr_idx : curr_idx + bsz] = batch["label"].cpu()
+        if dataset_name == "CODa":
+            info["classes"][curr_idx : curr_idx + bsz] = batch["class"].cpu()
+            info["sequences"][curr_idx : curr_idx + bsz] = batch["sequence"].cpu()
+            info["weathers"][curr_idx : curr_idx + bsz] = batch["weather"].cpu()
+            info["viewpoints"][curr_idx : curr_idx + bsz] = batch["viewpoint"].cpu()
+        curr_idx += bsz
 
     # Compute metrics
     for q_idx, q_label in tqdm(enumerate(labels), total=N, desc="computing metrics"):
@@ -125,7 +130,7 @@ def validate(model, val_dataloader, cfg, epoch=0):
         same_label_mask = labels == q_label
         same_label_mask[q_idx] = 0
         diff_label_mask = labels != q_label
-        if val_dataloader.dataset.name == "CODa":
+        if dataset_name == "CODa":
             # same label indices (exclude images from the same sequence)
             diff_sequence_mask = info["sequences"] != info["sequences"][q_idx]
             same_label_indices = torch.where(same_label_mask & diff_sequence_mask)[0]
@@ -133,14 +138,15 @@ def validate(model, val_dataloader, cfg, epoch=0):
             same_class_mask = info["classes"] == info["classes"][q_idx]
             diff_label_indices = torch.where(diff_label_mask & same_class_mask)[0]
             pass
-        elif val_dataloader.dataset.name == "ScanNet":
+        elif dataset_name == "ScanNet":
             same_label_indices = torch.where(same_label_mask)[0]
             diff_label_indices = torch.where(diff_label_mask)[0]
         else:
-            raise ValueError(f"Dataset {val_dataloader.dataset.name} not supported")
+            raise ValueError(f"Dataset {dataset_name} not supported")
 
         # Skip if there is no same instance in the reference set
         if len(same_label_indices) == 0:
+            rprint(f"WARNING: Query index {q_idx} has no same instance in the reference set.")
             continue
 
         # Get top indices
@@ -158,12 +164,11 @@ def validate(model, val_dataloader, cfg, epoch=0):
         metrics["num_ref_instance"].update(len(r_indices))
 
     # Log metrics
-    console = Console()
     for key, val in metrics.items():
-        console.print(f" - [bold]{key}[/bold]: {val.avg:.4f}")
+        rprint(f" - [bold]{key}[/bold]: {val.avg:.4f}")
 
     # Log to wandb
-    if cfg.get("wandb"):
+    if cfg.wandb:
         log_dict = {f"val/{key}": meter.avg for key, meter in metrics.items()}
         wandb.log(log_dict, step=epoch)
         metrics_table = wandb.Table(columns=["name", *metrics.keys()])
@@ -181,10 +186,10 @@ def main(cfg: DictConfig):
 
     print_config_tree(cfg, save_to_file=True)
 
-    if cfg.get("seed"):
+    if cfg.seed:
         seed_everything(cfg.seed)
 
-    if cfg.get("wandb"):
+    if cfg.wandb:
         wandb.init(
             entity="ut-amrl-amanda",
             dir=cfg.paths.output_dir,

@@ -13,9 +13,10 @@ defaults:
 data:
   num_workers: 4
 
-project_name: "CLOVER"
-task_name: "eval"
-name: "default"
+project: "CLOVER (Object Re-Identification)"
+task: "eval"
+name: ${dataset.name}_${model.name}
+tags: []
 
 ckpt_path: null
 seed: null

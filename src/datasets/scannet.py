@@ -6,7 +6,7 @@ from typing import Callable, Literal
 import cv2
 import numpy as np
 import torch
-from loguru import logger
+from rich import print as rprint
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
@@ -28,19 +28,23 @@ class ScanNetDataset(Dataset):
         self.mode = mode
         self.root_dir = Path(root_dir)
 
-        self.method = method if mode == "train" else None
         self.transform = transform
+        self.method = method if mode == "train" else None
         self.n_views = kwargs.get("n_views", 2)
 
         self.scene_ids = self._get_scene_ids()
 
-        print("-" * 80)
-        print(f"ScanNet dataset path: '{root_dir}'")
-        print(f"- Mode: {mode}, Method: {method}, # of scenes: {len(self.scene_ids)}")
-
         self._load_dataset()
 
-        print("-" * 80)
+        rprint("-" * 80)
+        rprint(f"ScanNet dataset path: '{root_dir}'")
+        rprint(f"mode: [bold]{mode}[/bold], method: [bold]{method}[/bold]")
+        rprint(f"# of scenes: {len(self.scene_ids)}")
+        rprint(
+            f"# of images / classes / instances: "
+            f"{len(self.image_files)} / {len(set(self.classes))} / {len(set(self.labels))}"
+        )
+        rprint("-" * 80)
 
     def _get_scene_ids(self):
         if self.mode == "train":
@@ -76,7 +80,7 @@ class ScanNetDataset(Dataset):
         for scene_id in tqdm(self.scene_ids, desc=f"Loading {self.mode} dataset"):
             annotation_file = self.root_dir / "2d_instance" / f"{scene_id}.json"
             if not annotation_file.exists():
-                logger.warning(f"Annotation file not found: {annotation_file}")
+                rprint("[red]Warning:[/red] Annotation file not found:", annotation_file)
                 continue
 
             sens_dir = self.root_dir / "scans" / scene_id / "sens"

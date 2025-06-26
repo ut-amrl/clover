@@ -47,19 +47,15 @@ def save_model(model, epoch, cfg, ckpt_path):
 
     state = {
         "net": model.net.state_dict(),
-        "optimizer": (
-            model.optimizer.state_dict() if hasattr(model, "optimizer") else None
-        ),
-        "scheduler": (
-            model.scheduler.state_dict() if hasattr(model, "scheduler") else None
-        ),
+        "optimizer": (model.optimizer.state_dict() if hasattr(model, "optimizer") else None),
+        "scheduler": (model.scheduler.state_dict() if hasattr(model, "scheduler") else None),
         "epoch": epoch,
         "cfg": cfg,
     }
     torch.save(state, ckpt_path)
 
 
-def seed_everything(seed=42):
+def seed_everything(seed: int = 42):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)

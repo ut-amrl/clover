@@ -15,6 +15,7 @@ from utils.metric import get_top_indices
 from utils.misc import AverageMeter, load_model, seed_everything
 
 
+@torch.no_grad()
 def test(model, test_dataloader, cfg):
     print("\n * Testing the model...")
     model.net.eval()
@@ -56,27 +57,28 @@ def test(model, test_dataloader, cfg):
 
     # Compute features and aggregate labels, additional info
     N = len(test_dataloader.dataset)
-    features = torch.zeros((N, model.net.feat_dim), dtype=torch.float)
-    labels = torch.zeros(N, dtype=torch.long)
+    features = torch.zeros((N, model.net.feat_dim), dtype=torch.float, device="cpu")
+    labels = torch.zeros(N, dtype=torch.long, device="cpu")
+
     # additional info (only for CODa)
     info = {
-        "classes": torch.zeros(N, dtype=torch.long),
-        "sequences": torch.zeros(N, dtype=torch.long),
-        "weathers": torch.zeros(N, dtype=torch.long),
-        "viewpoints": torch.zeros((N, 3), dtype=torch.float),
+        "classes": torch.zeros(N, dtype=torch.long, device="cpu"),
+        "sequences": torch.zeros(N, dtype=torch.long, device="cpu"),
+        "weathers": torch.zeros(N, dtype=torch.long, device="cpu"),
+        "viewpoints": torch.zeros((N, 3), dtype=torch.float, device="cpu"),
     }
-    with torch.no_grad():
-        curr_idx = 0
-        for batch in tqdm(test_dataloader, desc="computing features"):
-            bsz = batch["label"].size(0)
-            features[curr_idx : curr_idx + bsz] = model.forward(batch, mode="eval")
-            labels[curr_idx : curr_idx + bsz] = batch["label"]
-            if test_dataloader.dataset.name == "CODa":
-                info["classes"][curr_idx : curr_idx + bsz] = batch["class"]
-                info["sequences"][curr_idx : curr_idx + bsz] = batch["sequence"]
-                info["weathers"][curr_idx : curr_idx + bsz] = batch["weather"]
-                info["viewpoints"][curr_idx : curr_idx + bsz] = batch["viewpoint"]
-            curr_idx += bsz
+
+    curr_idx = 0
+    for batch in tqdm(test_dataloader, desc="computing features"):
+        bsz = batch["label"].size(0)
+        features[curr_idx : curr_idx + bsz] = model.forward(batch, mode="eval").cpu()
+        labels[curr_idx : curr_idx + bsz] = batch["label"].cpu()
+        if test_dataloader.dataset.name == "CODa":
+            info["classes"][curr_idx : curr_idx + bsz] = batch["class"].cpu()
+            info["sequences"][curr_idx : curr_idx + bsz] = batch["sequence"].cpu()
+            info["weathers"][curr_idx : curr_idx + bsz] = batch["weather"].cpu()
+            info["viewpoints"][curr_idx : curr_idx + bsz] = batch["viewpoint"].cpu()
+        curr_idx += bsz
 
     # Compute metrics
     for q_idx, q_label in tqdm(enumerate(labels), total=N, desc="computing metrics"):
@@ -169,17 +171,17 @@ def main(cfg: DictConfig):
 
     print_config_tree(cfg, save_to_file=True)
 
-    if cfg.get("seed"):
+    if cfg.seed:
         seed_everything(cfg.seed)
 
-    if cfg.get("wandb"):
+    if cfg.wandb:
         wandb.init(
             entity="ut-amrl-amanda",
             dir=cfg.paths.output_dir,
             project=cfg.project,
             name=cfg.name,
             notes=cfg.paths.output_dir,
-            tags=["train", *cfg.tags],
+            tags=["test", *cfg.tags],
             config={**cfg},
         )
 
@@ -188,7 +190,7 @@ def main(cfg: DictConfig):
         cfg.dataset,
         mode="test",
         transform=cfg.model.img_transform,
-        method=cfg.model.criterion.name if cfg.model.get("criterion") else None,
+        method=None,  # No method for evaluation
     )
 
     test_dataloader = DataLoader(

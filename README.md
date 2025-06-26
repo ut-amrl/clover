@@ -7,5 +7,11 @@ We will be publishing our finalized code here at the end of March 2025. If you w
 
 ## Usage
 ```bash
+conda env create clover python=3.12
+conda activate clover
+pip install -e .
+```
+
+```bash
 python src/train.py experiment=<config_file_name>
 ```

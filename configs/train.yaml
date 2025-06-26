@@ -15,13 +15,13 @@ data:
 
 train:
   max_epochs: 100
-  log_interval: 10
   early_stopping: 10
 
-project: "CLOVER"
-task_name: "train"
-name: "default"
+project: "CLOVER (Object Re-Identification)"
+task: "train"
+name: ${dataset.name}_${model.name}
+tags: []
 
 ckpt_path: null
-seed: null
+seed: 42
 wandb: True
