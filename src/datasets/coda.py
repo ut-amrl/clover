@@ -15,7 +15,6 @@ from typing import Callable, Literal
 
 import cv2
 import numpy as np
-import torch
 from loguru import logger
 from natsort import natsorted
 from rich import box
@@ -26,7 +25,6 @@ from tqdm import tqdm
 
 
 class CODataset(Dataset):
-
     classes_id = {
         "Tree": 0,
         "Pole": 1,
@@ -48,7 +46,7 @@ class CODataset(Dataset):
         mode: Literal["train", "val", "test"],
         split: Literal["region", "sequence", "random", "class"],
         transform: Callable,
-        method: Literal["SupCon", "Triplet"] = None,
+        method: Literal["SupCon", "Triplet"] | None = None,
         **kwargs,
     ):
         self.name = "CODa"
@@ -131,10 +129,7 @@ class CODataset(Dataset):
                 [d for d in self.root_dir.glob(f"annotations/{cam}/*") if d.is_dir()]
             ):
                 # NOTE: Sequence-based split
-                if (
-                    self.split == "sequence"
-                    and int(seq_dir.name) not in self.target_sequences
-                ):
+                if self.split == "sequence" and int(seq_dir.name) not in self.target_sequences:
                     continue
 
                 # Anno files is per image -- need to associate image id to each instance
@@ -153,7 +148,7 @@ class CODataset(Dataset):
                     / "2d_raw"
                     / info["camera"]
                     / str(info["sequence"])
-                    / (info["image_file"] + ".jpg")
+                    / (info["image_file"] + ".png")
                 )
 
                 for instance in annotation["instances"]:
@@ -217,9 +212,7 @@ class CODataset(Dataset):
                 # Skip instances with a single view
                 if len(indices) < 2:
                     continue
-                new_instance_indices[class_id][label] = range(
-                    last_index, last_index + len(indices)
-                )
+                new_instance_indices[class_id][label] = range(last_index, last_index + len(indices))
                 selected_indices.extend(indices)
                 last_index += len(indices)
 
@@ -287,9 +280,7 @@ class CODataset(Dataset):
 
         table = Table(title="Dataset Statistics", box=box.ROUNDED)
         table.add_column("Class", justify="left", style="cyan", no_wrap=True)
-        table.add_column(
-            "Instances (selected / total)", justify="center", style="magenta"
-        )
+        table.add_column("Instances (selected / total)", justify="center", style="magenta")
         table.add_column("Views", justify="right", style="green")
         sum_total, sum_selected, sum_views = 0, 0, 0
         for class_name, class_id in self.classes_id.items():
@@ -316,75 +307,79 @@ class CODataset(Dataset):
     def get_positive_idx(self, idx):
         pos_cls = self.classes[idx]
         pos_label = self.labels[idx]
-        return np.random.choice(self.instance_indices[pos_cls][pos_label], 1)[0]
+        candidates = [i for i in self.instance_indices_map[pos_cls][pos_label] if i != idx]
+        if len(candidates) < 1:
+            logger.error(
+                f"No positive samples found for index {idx} (class: {pos_cls}, label: {pos_label})."
+            )
+            return idx
+        return np.random.choice(candidates)
 
     def get_negative_idx(self, idx):
-        label = self.labels[idx]
+        anchor_cls = self.classes[idx]
+        anchor_label = self.labels[idx]
 
-        # Same class vs. different class for negative samples
-        neg_cls = self.classes[idx]
-        if len(self.instance_indices[neg_cls]) < 2 or np.random.rand() < 0.5:
-            potential_classes = [
-                cls
-                for cls in self.instance_indices
-                if len(self.instance_indices[cls]) > 1
-            ]
-            neg_cls = np.random.choice(potential_classes)
-
-        # remove the positive label
-        neg_labels = list(self.instance_indices[neg_cls].keys())
-        if label in neg_labels:
-            neg_labels.remove(label)
-
-        neg_label = np.random.choice(neg_labels, 1)[0]
-        return np.random.choice(self.instance_indices[neg_cls][neg_label], 1)[0]
+        # All available labels for this class except the anchor's label
+        neg_labels = [l for l in self.instance_indices_map[anchor_cls].keys() if l != anchor_label]
+        if neg_labels:
+            # same class, different instance
+            neg_cls = anchor_cls
+            neg_label = np.random.choice(neg_labels)
+        else:
+            # no other labels in the same class, choose a different class
+            other_classes = [c for c in self.instance_indices_map.keys() if c != anchor_cls]
+            neg_cls = np.random.choice(other_classes)
+            neg_label = np.random.choice(list(self.instance_indices_map[neg_cls].keys()))
+        candidates = self.instance_indices_map[neg_cls][neg_label]
+        return np.random.choice(candidates)
 
     def __len__(self):
         return len(self.image_files)
 
     def __getitem__(self, idx):
-        # Get indices for the views
-        # SupCon: [n_view1, n_view2, ...]
-        # Triplet: [anchor, positive, negative]
+        """get positive and negative samples for the given index
+        'SupCon' method: returns multiple views of the same instance (view1, view2, ...)
+        'Triplet' method: returns (anchor, positive, negative)
+        """
         indices = [idx]
         if self.mode == "train":
             if self.method == "SupCon":
-                indices.extend(
-                    [self.get_positive_idx(idx) for _ in range(self.n_views - 1)]
-                )
+                indices.extend([self.get_positive_idx(idx) for _ in range(self.n_views - 1)])
             elif self.method == "Triplet":
                 pos_idx = self.get_positive_idx(idx)
                 neg_idx = self.get_negative_idx(idx)
                 indices.extend([pos_idx, neg_idx])
             else:
-                raise ValueError(f"Invalid method: {self.method}")
+                raise ValueError(f"Not supported method: {self.method}")
 
         def load_img(img_file):
             img = cv2.imread(img_file, cv2.IMREAD_COLOR)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             return img
 
+        images = []
+        for i in indices:
+            img = load_img(self.image_files[i])
+            transformed = self.transform(
+                img=img,
+                bbox=self.bboxes[i],
+                segmentation=self.segmentations[i],
+                mode="train" if self.mode == "train" else "eval",
+            )
+            images.append(transformed)
+
         data = {
-            "images": [
-                self.transform(
-                    img=load_img(self.image_files[i]),
-                    bbox=self.bboxes[i],
-                    segmentation=self.segmentations[i],
-                    mode="train" if self.mode == "train" else "eval",
-                )
-                for i in indices
-            ],
-            "label": torch.tensor(self.labels[idx], dtype=torch.long),
-            "class": torch.tensor(self.classes[idx], dtype=torch.long),
-            "sequence": torch.tensor(self.sequences[idx], dtype=torch.long),
-            "weather": torch.tensor(self.weathers[idx], dtype=torch.long),
-            "viewpoint": torch.tensor(self.viewpoints[idx], dtype=torch.float),
+            "images": images,
+            "label": self.labels[idx],
+            "class": self.classes[idx],
+            "sequence": self.sequences[idx],
+            "weather": self.weathers[idx],
+            "viewpoint": self.viewpoints[idx],
         }
         return data
 
 
 if __name__ == "__main__":
-
     import matplotlib.pyplot as plt
 
     def transform(img, bbox, segmentation, mode):

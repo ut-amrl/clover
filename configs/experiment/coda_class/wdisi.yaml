@@ -9,12 +9,3 @@ data:
 
 train:
   clip_grad_norm: 5
-
-#
-name: "CODa_class_WDISI"
-tags:
-  - "CODa"
-  - "class"
-  - "WDISI"
-
-seed: 42

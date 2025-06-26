@@ -9,7 +9,7 @@ net:
   img_size: 224
 
 criterion:
-  _target_: losses.TripletLoss
+  _target_: losses.triplet.TripletLoss
   name: "Triplet"
   margin: 1.0
 

@@ -8,10 +8,4 @@ train:
   clip_grad_norm: 5.0
 
 data:
-  batch_size: 12
-
-tags:
-  - "ScanNet"
-  - "WDISI"
-
-seed: 42
+  batch_size: 24

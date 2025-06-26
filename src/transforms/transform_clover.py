@@ -119,7 +119,10 @@ def augment_bbox(bbox: List[int], image_size: Tuple[int, int], shift_ratio: floa
     img_w, img_h = image_size
 
     width, height = x2 - x1, y2 - y1
-    shifts = lambda length: int(length * random.uniform(-shift_ratio, shift_ratio))
+
+    def shifts(length):
+        return int(length * random.uniform(-shift_ratio, shift_ratio))
+
     augmented_bbox = [
         max(0, x1 + shifts(width)),
         max(0, y1 + shifts(height)),

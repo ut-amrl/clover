@@ -1,12 +1,8 @@
 # @package _global_
 
 defaults:
-  - override /model: clover
   - override /dataset: scannet
+  - override /model: clover
 
 data:
-  batch_size: 16
-
-tags:
-  - "ScanNet"
-  - "CLOVER"
+  batch_size: 40

@@ -20,7 +20,10 @@ train:
 project: "CLOVER (Object Re-Identification)"
 task: "train"
 name: ${dataset.name}_${model.name}
-tags: []
+tags:
+  - "train"
+  - ${dataset.name}
+  - ${model.name}
 
 ckpt_path: null
 seed: 42

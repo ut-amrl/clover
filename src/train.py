@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from utils.logging import print_config_tree
-from utils.metric import get_top_indices
+from utils.metric import get_similarity_matrix
 from utils.misc import AverageMeter, load_model, save_model, seed_everything
 
 
@@ -59,7 +59,7 @@ def train(model, train_dataloader, val_dataloader, cfg):
             )
 
         # Validation
-        val_acc = validate(model, val_dataloader, cfg, epoch)
+        val_acc = validate(model, val_dataloader, cfg, step)
 
         # Save best model
         if val_acc > best_acc:
@@ -83,7 +83,7 @@ def train(model, train_dataloader, val_dataloader, cfg):
 
 
 @torch.no_grad()
-def validate(model, val_dataloader, cfg, epoch=0):
+def validate(model, val_dataloader, cfg, step: int = 0):
     print("\n\n * Validating the model...")
     model.net.eval()
 
@@ -108,8 +108,6 @@ def validate(model, val_dataloader, cfg, epoch=0):
         info = {
             "classes": torch.zeros(N, dtype=torch.long, device="cpu"),
             "sequences": torch.zeros(N, dtype=torch.long, device="cpu"),
-            "weathers": torch.zeros(N, dtype=torch.long, device="cpu"),
-            "viewpoints": torch.zeros((N, 3), dtype=torch.float, device="cpu"),
         }
 
     curr_idx = 0
@@ -120,48 +118,50 @@ def validate(model, val_dataloader, cfg, epoch=0):
         if dataset_name == "CODa":
             info["classes"][curr_idx : curr_idx + bsz] = batch["class"].cpu()
             info["sequences"][curr_idx : curr_idx + bsz] = batch["sequence"].cpu()
-            info["weathers"][curr_idx : curr_idx + bsz] = batch["weather"].cpu()
-            info["viewpoints"][curr_idx : curr_idx + bsz] = batch["viewpoint"].cpu()
         curr_idx += bsz
+
+    # Precompute similarity and sorted indices
+    sim_matrix = get_similarity_matrix(features, method=model.similarity_type)
+    sim_matrix.fill_diagonal_(-float("inf"))
+    sorted_indices = torch.argsort(sim_matrix, dim=1, descending=True)  # (N, N)
+
+    # get positive and negative masks
+    same_label_mask = labels.unsqueeze(1) == labels.unsqueeze(0)  # (N, N)
+    same_label_mask.fill_diagonal_(False)  # exclude the query index itself
+    diff_label_mask = labels.unsqueeze(1) != labels.unsqueeze(0)  # (N, N)
+    if dataset_name == "CODa":
+        # same label indices (exclude images from the same sequence)
+        diff_sequence_mask = info["sequences"].unsqueeze(1) != info["sequences"].unsqueeze(0)
+        same_label_mask &= diff_sequence_mask
+        # reference indices (same class but different instance)
+        same_class_mask = info["classes"].unsqueeze(1) == info["classes"].unsqueeze(0)
+        diff_label_mask &= same_class_mask
+
+    # Get positive and negative masks in the rank order
+    pos_in_rank = same_label_mask.gather(1, sorted_indices)  # (N, N)
+    neg_in_rank = diff_label_mask.gather(1, sorted_indices)  # (N, N)
+    candidates_in_rank = pos_in_rank | neg_in_rank  # (N, N)
 
     # Compute metrics
     for q_idx, q_label in tqdm(enumerate(labels), total=N, desc="computing metrics"):
-        # Filter reference indices
-        same_label_mask = labels == q_label
-        same_label_mask[q_idx] = 0
-        diff_label_mask = labels != q_label
-        if dataset_name == "CODa":
-            # same label indices (exclude images from the same sequence)
-            diff_sequence_mask = info["sequences"] != info["sequences"][q_idx]
-            same_label_indices = torch.where(same_label_mask & diff_sequence_mask)[0]
-            # reference indices (same class but different instance)
-            same_class_mask = info["classes"] == info["classes"][q_idx]
-            diff_label_indices = torch.where(diff_label_mask & same_class_mask)[0]
-            pass
-        elif dataset_name == "ScanNet":
-            same_label_indices = torch.where(same_label_mask)[0]
-            diff_label_indices = torch.where(diff_label_mask)[0]
-        else:
-            raise ValueError(f"Dataset {dataset_name} not supported")
-
         # Skip if there is no same instance in the reference set
-        if len(same_label_indices) == 0:
-            rprint(f"WARNING: Query index {q_idx} has no same instance in the reference set.")
+        if pos_in_rank[q_idx].numel() == 0:
+            rprint(f"WARNING: Query index {q_idx} has no positive instances in the reference set.")
             continue
 
-        # Get top indices
-        r_indices = torch.cat((same_label_indices, diff_label_indices), dim=0)
-        top_indices = get_top_indices(features, q_idx, r_indices, method=model.similarity_type)
+        candidate_indices = torch.where(candidates_in_rank[q_idx])[0]
+        hits = pos_in_rank[q_idx][candidate_indices]
+        if hits.sum() == 0:
+            rprint(f"WARNING: Query index {q_idx} has no hits in the reference set.")
+            continue
 
         # Update metrics
-        hits = torch.eq(labels[top_indices], q_label)
-        precisions = torch.cumsum(hits, dim=0) / torch.arange(1, len(hits) + 1)
-
+        precisions = torch.cumsum(hits, dim=0) / (torch.arange(len(hits)) + 1)
         metrics["mAP"].update(precisions[hits].mean().item())
         for k in topk:
             metrics[f"top@{k}"].update(float(hits[:k].any().item()))
-        metrics["num_same_instance"].update(len(same_label_indices))
-        metrics["num_ref_instance"].update(len(r_indices))
+        metrics["num_same_instance"].update(hits.sum().item())
+        metrics["num_ref_instance"].update(candidate_indices.numel())
 
     # Log metrics
     for key, val in metrics.items():
@@ -170,10 +170,10 @@ def validate(model, val_dataloader, cfg, epoch=0):
     # Log to wandb
     if cfg.wandb:
         log_dict = {f"val/{key}": meter.avg for key, meter in metrics.items()}
-        wandb.log(log_dict, step=epoch)
+        wandb.log(log_dict, step=step)
         metrics_table = wandb.Table(columns=["name", *metrics.keys()])
         metrics_table.add_data(cfg.name, *[meter.avg for meter in metrics.values()])
-        wandb.log({"val/metrics": metrics_table}, step=epoch)
+        wandb.log({"val/metrics": metrics_table}, step=step)
 
     return metrics["mAP"].avg
 
@@ -196,7 +196,7 @@ def main(cfg: DictConfig):
             project=cfg.project,
             name=cfg.name,
             notes=cfg.paths.output_dir,
-            tags=["train", *cfg.tags],
+            tags=cfg.tags,
             config={**cfg},
         )
 

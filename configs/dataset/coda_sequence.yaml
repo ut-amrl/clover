@@ -1,9 +1,12 @@
 _target_: datasets.coda.CODataset
 root_dir: ${paths.data_dir}/CODa
+name: CODa_sequence
 split: "sequence"
+
 train_sequences: [0, 1, 2, 6, 10, 12]
-val_sequences: ${dataset.train_sequences}
+val_sequences: ${.train_sequences}
 test_sequences: [3, 4, 5, 7, 9, 11, 13, 16, 17, 18, 19, 20, 21, 22]
+
 skip_train: 5
 skip_val: 50
 skip_test: 50

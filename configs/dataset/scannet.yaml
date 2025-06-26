@@ -1,3 +1,9 @@
 _target_: datasets.scannet.ScanNetDataset
-name: ScanNet
 root_dir: ${paths.data_dir}/ScanNet
+name: ScanNet
+
+train_index_file: ${.root_dir}/index/scannet_train.txt
+val_index_file: ${.root_dir}/index/scannet_val.txt
+test_index_file: ${.root_dir}/index/scannet_test.txt
+
+frame_gap: 50  # skip for val and test

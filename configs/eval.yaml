@@ -16,8 +16,11 @@ data:
 project: "CLOVER (Object Re-Identification)"
 task: "eval"
 name: ${dataset.name}_${model.name}
-tags: []
+tags:
+  - "eval"
+  - ${dataset.name}
+  - ${model.name}
 
 ckpt_path: null
-seed: null
+seed: 42
 wandb: True

@@ -9,12 +9,3 @@ data:
 
 train:
   clip_grad_norm: 5
-
-#
-name: "CODa_region_WDISI"
-tags:
-  - "CODa"
-  - "region"
-  - "WDISI"
-
-seed: 42

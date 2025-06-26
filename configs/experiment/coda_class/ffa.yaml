@@ -6,12 +6,3 @@ defaults:
 
 data:
   batch_size: 64
-
-#
-name: "CODa_class_FFA"
-tags:
-  - "CODa"
-  - "class"
-  - "FFA"
-
-seed: 42

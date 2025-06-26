@@ -6,12 +6,3 @@ defaults:
 
 data:
   batch_size: 48
-
-#
-name: "CODa_class_ReOBJ"
-tags:
-  - "CODa"
-  - "class"
-  - "ReOBJ"
-
-seed: 42

@@ -10,6 +10,7 @@ dependencies = [
     "opencv-python",
     "numpy",
     "hydra-core",
+    "natsort",
     "loguru",
     "rich",
     "wandb",
@@ -25,6 +26,7 @@ where = ["src"]
 [project.optional-dependencies]
 dev = [
     "ruff",
+    "matplotlib",
 ]
 
 [tool.ruff]

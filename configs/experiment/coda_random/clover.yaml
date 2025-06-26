@@ -6,12 +6,3 @@ defaults:
 
 data:
   batch_size: 64
-
-#
-name: "CODa_random_CLOVER"
-tags:
-  - "CODa"
-  - "random"
-  - "CLOVER"
-
-seed: 42

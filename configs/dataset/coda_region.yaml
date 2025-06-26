@@ -1,13 +1,16 @@
 _target_: datasets.coda.CODataset
 root_dir: ${paths.data_dir}/CODa
+name: CODa_region
 split: "region"
+
 train_region: 
   x: [-.inf, 0.0]
   y: [-.inf, .inf]
-val_region: ${dataset.train_region}
+val_region: ${.train_region}
 test_region:
   x: [0.0, .inf]
   y: [-.inf, .inf]
+
 skip_train: 5
 skip_val: 50
 skip_test: 50

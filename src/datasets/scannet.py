@@ -5,23 +5,22 @@ from typing import Callable, Literal
 
 import cv2
 import numpy as np
-import torch
+from loguru import logger
 from rich import print as rprint
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
 
 class ScanNetDataset(Dataset):
-    train_scenes_file = "data/ScanNet/index/scannet_train.txt"
-    val_scenes_file = "data/ScanNet/index/scannet_val.txt"
-    test_scenes_file = "data/ScanNet/index/scannet_test.txt"
+    """ScanNet dataset for object re-identification"""
 
     def __init__(
         self,
         root_dir: str,
         mode: Literal["train", "val", "test"],
         transform: Callable,
-        method: Literal["SupCon", "Triplet"] = None,
+        frame_gap: int,
+        method: Literal["SupCon", "Triplet"] | None = None,
         **kwargs,
     ):
         self.name = "ScanNet"
@@ -29,47 +28,42 @@ class ScanNetDataset(Dataset):
         self.root_dir = Path(root_dir)
 
         self.transform = transform
+        self.frame_gap = 1 if mode == "train" else frame_gap
         self.method = method if mode == "train" else None
         self.n_views = kwargs.get("n_views", 2)
 
-        self.scene_ids = self._get_scene_ids()
+        scene_index_file = kwargs.get(f"{mode}_index_file", None)
+        scene_ids = self._get_scene_ids(scene_index_file)
 
-        self._load_dataset()
+        self._load_dataset(scene_ids)
 
         rprint("-" * 80)
         rprint(f"ScanNet dataset path: '{root_dir}'")
-        rprint(f"mode: [bold]{mode}[/bold], method: [bold]{method}[/bold]")
-        rprint(f"# of scenes: {len(self.scene_ids)}")
+        rprint(f"mode: [bold]{mode}[/bold], frame gap: {self.frame_gap}")
+        if self.method:
+            rprint(f"method: [bold]{self.method}[/bold]")
+        rprint(f"# of scenes: {len(scene_ids)}")
         rprint(
             f"# of images / classes / instances: "
             f"{len(self.image_files)} / {len(set(self.classes))} / {len(set(self.labels))}"
         )
         rprint("-" * 80)
 
-    def _get_scene_ids(self):
-        if self.mode == "train":
-            with open(self.train_scenes_file, "r") as f:
-                scene_ids = f.read().splitlines()
-        elif self.mode == "val":
-            with open(self.val_scenes_file, "r") as f:
-                scene_ids = f.read().splitlines()
-        elif self.mode == "test":
-            with open(self.test_scenes_file, "r") as f:
-                scene_ids = f.read().splitlines()
-        else:
-            raise ValueError(f"Invalid mode: {self.mode}")
+    def _get_scene_ids(self, scene_index_file):
+        if not scene_index_file or not Path(scene_index_file).exists():
+            raise FileNotFoundError(
+                f"Scene index file for mode '{self.mode}' not found: {scene_index_file}"
+            )
 
-        # NOTE: instance IDs are unique within the same scene
+        with open(scene_index_file, "r") as f:
+            scene_ids = f.read().splitlines()
+
+        # NOTE: In ScanNet, instance IDs are unique within the same scene
         # e.g., scene0000_00, scene0000_01 have different instance IDs for the same object
-        unique_scene_ids = {}
-        for scene_id in scene_ids:
-            base_scene_id = scene_id.split("_")[0]
-            if base_scene_id not in unique_scene_ids:
-                unique_scene_ids[base_scene_id] = scene_id
+        # Therefore, we keep only one scene ID per base scene
+        return list({scene_id.split("_")[0]: scene_id for scene_id in scene_ids}.values())
 
-        return list(unique_scene_ids.values())
-
-    def _load_dataset(self):
+    def _load_dataset(self, scene_ids):
         unique_label_map = {}
         unique_label = 0
         class_name_id_map = {}
@@ -77,7 +71,10 @@ class ScanNetDataset(Dataset):
         # {class: {label: [idx1, idx2, ...]}}
         tmp_instance_data = defaultdict(lambda: defaultdict(list))
 
-        for scene_id in tqdm(self.scene_ids, desc=f"Loading {self.mode} dataset"):
+        # For skipping near-duplicate frames in val/test
+        instance_frame_memory = defaultdict(list)
+
+        for scene_id in tqdm(scene_ids, desc=f"Loading {self.mode} dataset"):
             annotation_file = self.root_dir / "2d_instance" / f"{scene_id}.json"
             if not annotation_file.exists():
                 rprint("[red]Warning:[/red] Annotation file not found:", annotation_file)
@@ -105,6 +102,14 @@ class ScanNetDataset(Dataset):
                     # assign globally unique class ID
                     class_id = class_name_id_map.setdefault(class_name, len(class_name_id_map))
 
+                    # Skip near-duplicate frames in val/test
+                    # NOTE: To make task non-trivial,
+                    if self.mode in ["val", "test"]:
+                        prev_frames = instance_frame_memory.get(label, [])
+                        if any(abs(pf - frame_id) <= self.frame_gap for pf in prev_frames):
+                            continue
+                        instance_frame_memory[label].append(frame_id)
+
                     tmp_instance_data[class_id][label].append(
                         {
                             "img_file": img_file,
@@ -118,9 +123,11 @@ class ScanNetDataset(Dataset):
         self.instance_indices_map = defaultdict(lambda: defaultdict(list))
         self.image_files = []
         self.classes, self.labels, self.bboxes, self.segmentations = [], [], [], []
+        filtered_cnt = 0
         for class_id, label_map in tmp_instance_data.items():
             for label, samples in label_map.items():
                 if len(samples) < 2:
+                    filtered_cnt += 1
                     continue  # skip singleton instances
 
                 for sample in samples:
@@ -132,29 +139,40 @@ class ScanNetDataset(Dataset):
                     self.segmentations.append(sample["segmentation"])
                     self.instance_indices_map[class_id][label].append(idx)
 
+        if filtered_cnt > 0:
+            logger.warning(
+                f"Filtered out {filtered_cnt} singleton instances. "
+                "These instances have less than 2 samples in the dataset."
+            )
+
     def get_positive_idx(self, idx):
         pos_cls = self.classes[idx]
         pos_label = self.labels[idx]
-        return np.random.choice(self.instance_indices_map[pos_cls][pos_label], 1)[0]
+        candidates = [i for i in self.instance_indices_map[pos_cls][pos_label] if i != idx]
+        if len(candidates) < 1:
+            logger.error(
+                f"No positive samples found for index {idx} (class: {pos_cls}, label: {pos_label})."
+            )
+            return idx
+        return np.random.choice(candidates)
 
     def get_negative_idx(self, idx):
-        # Same class vs. different class for negative samples
-        neg_cls = self.classes[idx]
-        if len(self.instance_indices_map[neg_cls]) < 2 or np.random.rand() < 0.5:
-            potential_classes = [
-                cls
-                for cls in self.instance_indices_map.keys()
-                if cls != self.classes[idx] and len(self.instance_indices_map[cls]) > 1
-            ]
-            neg_cls = np.random.choice(potential_classes)
+        anchor_cls = self.classes[idx]
+        anchor_label = self.labels[idx]
 
-        # remove the positive label
-        neg_labels = list(self.instance_indices_map[neg_cls].keys())
-        if self.labels[idx] in neg_labels:
-            neg_labels.remove(self.labels[idx])
-
-        neg_label = np.random.choice(neg_labels, 1)[0]
-        return np.random.choice(self.instance_indices_map[neg_cls][neg_label], 1)[0]
+        # All available labels for this class except the anchor's label
+        neg_labels = [l for l in self.instance_indices_map[anchor_cls].keys() if l != anchor_label]
+        if neg_labels:
+            # same class, different instance
+            neg_cls = anchor_cls
+            neg_label = np.random.choice(neg_labels)
+        else:
+            # no other labels in the same class, choose a different class
+            other_classes = [c for c in self.instance_indices_map.keys() if c != anchor_cls]
+            neg_cls = np.random.choice(other_classes)
+            neg_label = np.random.choice(list(self.instance_indices_map[neg_cls].keys()))
+        candidates = self.instance_indices_map[neg_cls][neg_label]
+        return np.random.choice(candidates)
 
     def __len__(self):
         return len(self.image_files)
@@ -180,20 +198,18 @@ class ScanNetDataset(Dataset):
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             return img
 
-        data = {
-            "images": [
-                self.transform(
-                    img=load_img(self.image_files[i]),
-                    bbox=self.bboxes[i],
-                    segmentation=self.segmentations[i],
-                    mode="train" if self.mode == "train" else "eval",
-                )
-                for i in indices
-            ],
-            "label": torch.tensor(self.labels[idx], dtype=torch.long),
-            "class": torch.tensor(self.classes[idx], dtype=torch.long),
-        }
+        images = []
+        for i in indices:
+            img = load_img(self.image_files[i])
+            transformed = self.transform(
+                img=img,
+                bbox=self.bboxes[i],
+                segmentation=self.segmentations[i],
+                mode="train" if self.mode == "train" else "eval",
+            )
+            images.append(transformed)
 
+        data = {"images": images, "label": self.labels[idx], "class": self.classes[idx]}
         return data
 
 
@@ -205,8 +221,9 @@ if __name__ == "__main__":
 
     dataset = ScanNetDataset("data/ScanNet", "train", transform=transform, method="Triplet")
 
-    for i in range(10):
-        data = dataset[i]
+    for i in range(1000):
+        idx = np.random.randint(0, len(dataset))
+        data = dataset[idx]
 
         anc_img = data["images"][0][0]
         pos_img = data["images"][1][0]
@@ -257,4 +274,6 @@ if __name__ == "__main__":
             )
         )
 
-        plt.show()
+        plt.tight_layout()
+        plt.savefig(f"figure/scannet_sample_{i}.png")
+        plt.close(fig)

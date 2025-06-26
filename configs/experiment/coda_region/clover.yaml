@@ -6,12 +6,3 @@ defaults:
 
 data:
   batch_size: 64
-
-#
-name: "CODa_region_CLOVER"
-tags:
-  - "CODa"
-  - "region"
-  - "CLOVER"
-
-seed: 42

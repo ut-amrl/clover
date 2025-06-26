@@ -15,7 +15,7 @@ net:
   use_content_head: True
 
 criterion: 
-  _target_: losses.SupConLoss
+  _target_: losses.supcon.SupConLoss
   name: "SupCon"
   temperature: 0.07
   contrast_mode: all

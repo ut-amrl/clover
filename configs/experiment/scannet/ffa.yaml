@@ -5,10 +5,4 @@ defaults:
   - override /model: ffa
 
 data:
-  batch_size: 8
-
-tags:
-  - "ScanNet"
-  - "FFA"
-
-seed: 42
+  batch_size: 32

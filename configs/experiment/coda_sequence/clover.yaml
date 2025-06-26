@@ -5,13 +5,8 @@ defaults:
   - override /model: clover
 
 data:
-  batch_size: 64
+  batch_size: 40
 
-#
-name: "CODa_sequence_CLOVER"
 tags:
-  - "CODa"
-  - "sequence"
+  - "CODa_sequence"
   - "CLOVER"
-
-seed: 42
