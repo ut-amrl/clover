@@ -17,3 +17,10 @@ pip install -e .[dev]
 ```bash
 python src/train.py experiment=<config_file_name>
 ```
+
+## CODa Re-ID
+```bash
+pip install -e ./coda_reid
+
+python coda_reid/get_global_3d_bbox.py
+```

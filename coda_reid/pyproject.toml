@@ -1,0 +1,16 @@
+[project]
+name = "coda_reid"
+version = "0.1.0"
+description = "Data preprocessing tools for CODa Re-ID dataset"
+dependencies = [
+    "numpy",
+    "scipy",
+    "scikit-learn",
+]
+
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
