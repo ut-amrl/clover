@@ -117,11 +117,7 @@ def get_annotations(img_file, input_masks):
         mask_overlap = (mask * input_masks[idx]).sum() / input_masks[idx].sum()
 
         # NOTE: Filter out (occlusion, low score, small mask) cases
-        if (
-            mask_overlap < MIN_MASK_OVERLAP
-            or score < MIN_SAM2_SCORE
-            or mask.sum() < MIN_MASK_AREA
-        ):
+        if mask_overlap < MIN_MASK_OVERLAP or score < MIN_SAM2_SCORE or mask.sum() < MIN_MASK_AREA:
             continue
 
         contours, _ = cv2.findContours(
@@ -217,9 +213,7 @@ def main(args):
             for instance_data in frame_data["instances"]
             if instance_count[instance_data["instanceId"]] >= MIN_NUM_INSTANCES
         ]
-    data["frames"] = [
-        frame_data for frame_data in data["frames"] if frame_data["instances"]
-    ]
+    data["frames"] = [frame_data for frame_data in data["frames"] if frame_data["instances"]]
 
     # Save the data
     with open(args.output_file, "w") as f:
@@ -229,7 +223,7 @@ def main(args):
         f.write(jsbeautifier.beautify(json.dumps(data), opts))
 
 
-def get_args():
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Preprocess ScanNet scenes for object re-identification"
     )
@@ -262,9 +256,4 @@ def get_args():
     args.instance_dir = args.scene_dir / "instance-filt"
     args.aggregation_file = args.scene_dir / f"{args.scene_id}.aggregation.json"
 
-    return args
-
-
-if __name__ == "__main__":
-    args = get_args()
     main(args)
