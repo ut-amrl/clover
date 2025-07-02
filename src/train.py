@@ -65,7 +65,7 @@ def train(model, train_dataloader, val_dataloader, cfg):
         if val_acc > best_acc:
             best_acc = val_acc
             best_epoch = epoch
-            ckpt_path = os.path.join(cfg.paths.output_dir, "ckpt", f"epoch_{epoch}.pth")
+            ckpt_path = os.path.join(cfg.paths.output_dir, "ckpt", f"e{epoch}_{val_acc:.4f}.pth")
             save_model(model, epoch, cfg, ckpt_path)
 
         # Save last model
@@ -235,8 +235,15 @@ def main(cfg: DictConfig):
         load_model(model, cfg.ckpt_path)
 
     if torch.cuda.is_available():
-        model.net = model.net.cuda()
-        model.criterion = model.criterion.cuda()
+        device = torch.device("cuda")
+        model.net = model.net.to(device)
+        model.criterion = model.criterion.to(device)
+
+        if hasattr(model, "optimizer"):
+            for state in model.optimizer.state.values():
+                for k, v in state.items():
+                    if isinstance(v, torch.Tensor):
+                        state[k] = v.to(device)
         cudnn.benchmark = True
     else:
         raise ValueError("There is no GPU available.")

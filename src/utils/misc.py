@@ -3,6 +3,7 @@ import random
 
 import numpy as np
 import torch
+from omegaconf import OmegaConf
 from rich import print as rprint
 
 
@@ -35,7 +36,7 @@ def load_model(model, ckpt_path):
         if hasattr(model, "scheduler"):
             model.scheduler.load_state_dict(ckpt["scheduler"])
         if "cfg" in ckpt:
-            model.cfg = ckpt["cfg"]
+            model.cfg = OmegaConf.create(ckpt["cfg"])
     except Exception as e:
         rprint(f"Error loading model: {e}")
         raise e
@@ -47,10 +48,10 @@ def save_model(model, epoch, cfg, ckpt_path):
 
     state = {
         "net": model.net.state_dict(),
-        "optimizer": (model.optimizer.state_dict() if hasattr(model, "optimizer") else None),
-        "scheduler": (model.scheduler.state_dict() if hasattr(model, "scheduler") else None),
+        "optimizer": model.optimizer.state_dict() if hasattr(model, "optimizer") else None,
+        "scheduler": model.scheduler.state_dict() if hasattr(model, "scheduler") else None,
         "epoch": epoch,
-        "cfg": cfg,
+        "cfg": OmegaConf.to_container(cfg, resolve=True),  # <- convert to dict
     }
     torch.save(state, ckpt_path)
 
