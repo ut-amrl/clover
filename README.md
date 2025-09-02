@@ -27,8 +27,25 @@
 Thank you for your interest in CLOVER. 
 
 
-## Dataset Download
+## CODa-ReID Dataset Download
+You need (1) images from CODa and (2) out annotations.
+1. Images: Download from https://amrl.cs.utexas.edu/coda/download.html
+2. Annotations (CODa-ReID): Download from https://doi.org/10.18738/T8/E9WFTW
 
+**Dataset layout**
+```
+CODa-ReID
+├── 2d_raw
+│   ├── cam0
+│   └── cam1
+├── 3d_bbox
+│   └── global
+│       ├── Tree.json
+|       ├── ...
+└── annotations
+    ├── cam0
+    └── cam1
+```
 
 
 
