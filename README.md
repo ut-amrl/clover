@@ -67,7 +67,7 @@ From the `src` directory, run ```python train.py --config-name <config file name
 
 
 ### Inference
-From the `src` directory, run ```python eval.py --config-name <config file name>```
+From the `src` directory, run ```python eval.py --config-name <config file name> ++ckpt=<path to checkpoint>```
 
 ## MapCLOVER
 
