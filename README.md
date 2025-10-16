@@ -57,12 +57,17 @@ CODa-ReID
 
 ## CLOVER Usage
 
+CLOVER training and evaluation requires a config file that specifies model parameters and dataset details. 
+For CODa Re-ID, this is train.yaml
+
 
 ### Training
 
+From the `src` directory, run ```python train.py --config-name <config file name>```
+
 
 ### Inference
-
+From the `src` directory, run ```python eval.py --config-name <config file name>```
 
 ## MapCLOVER
 
